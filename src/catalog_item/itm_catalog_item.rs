@@ -213,7 +213,11 @@ impl CatalogItem {
             catalog_item_label: self.label.resolve(consumer_profile)?,
             variant_id: variant.variant_id.clone(),
             variant_label_definition: variant.label.clone(),
-            variant_label: variant.label.resolve(consumer_profile)?,
+            variant_label: variant
+                .label
+                .as_ref()
+                .map(|label| label.resolve(consumer_profile))
+                .transpose()?,
             effects: variant.effects.clone(),
             invariant_price: variant.invariant_price.clone(),
             modifiers,
@@ -227,7 +231,7 @@ impl CatalogItem {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Variant {
     variant_id: VariantId,
-    label: Label,
+    label: Option<Label>,
     invariant_price: Money,
     effects: Vec<Effect>,
     modifier_applicability: ModifierApplicability,
@@ -256,6 +260,23 @@ impl Variant {
         invariant_price: Money,
         effects: Vec<Effect>,
     ) -> Result<Self, CatalogItemError> {
+        Self::with_optional_label(variant_id, Some(label), invariant_price, effects)
+    }
+
+    pub fn without_label(
+        variant_id: VariantId,
+        invariant_price: Money,
+        effects: Vec<Effect>,
+    ) -> Result<Self, CatalogItemError> {
+        Self::with_optional_label(variant_id, None, invariant_price, effects)
+    }
+
+    fn with_optional_label(
+        variant_id: VariantId,
+        label: Option<Label>,
+        invariant_price: Money,
+        effects: Vec<Effect>,
+    ) -> Result<Self, CatalogItemError> {
         if invariant_price.amount_minor() < 0 {
             return Err(CatalogItemError::NegativeVariantPrice(variant_id));
         }
@@ -281,12 +302,12 @@ impl Variant {
         &self.variant_id
     }
 
-    pub fn title(&self) -> &str {
-        self.label.default_text()
+    pub fn title(&self) -> Option<&str> {
+        self.label.as_ref().map(Label::default_text)
     }
 
-    pub fn label(&self) -> &Label {
-        &self.label
+    pub fn label(&self) -> Option<&Label> {
+        self.label.as_ref()
     }
 
     pub fn invariant_price(&self) -> &Money {
@@ -308,8 +329,8 @@ pub struct ConfiguredCatalogItem {
     catalog_item_label_definition: Label,
     catalog_item_label: ResolvedLabel,
     variant_id: VariantId,
-    variant_label_definition: Label,
-    variant_label: ResolvedLabel,
+    variant_label_definition: Option<Label>,
+    variant_label: Option<ResolvedLabel>,
     effects: Vec<Effect>,
     invariant_price: Money,
     modifiers: ModifierConfiguration,
@@ -335,12 +356,12 @@ impl ConfiguredCatalogItem {
         &self.variant_id
     }
 
-    pub fn variant_label(&self) -> &ResolvedLabel {
-        &self.variant_label
+    pub fn variant_label(&self) -> Option<&ResolvedLabel> {
+        self.variant_label.as_ref()
     }
 
-    pub fn variant_label_definition(&self) -> &Label {
-        &self.variant_label_definition
+    pub fn variant_label_definition(&self) -> Option<&Label> {
+        self.variant_label_definition.as_ref()
     }
 
     pub fn effects(&self) -> &[Effect] {
@@ -374,6 +395,7 @@ pub enum CatalogItemError {
     EmptyVariantTitle,
     CatalogItemHasNoVariants(CatalogItemId),
     NegativeVariantPrice(VariantId),
+    UnlabeledVariantRequiresSingleVariant(VariantId),
     DuplicateVariant(VariantId),
     VariantCurrencyMismatch { left: VariantId, right: VariantId },
     UnknownVariant(VariantId),
@@ -396,6 +418,10 @@ impl fmt::Display for CatalogItemError {
             Self::NegativeVariantPrice(variant_id) => {
                 write!(f, "variant `{variant_id}` cannot have a negative price")
             }
+            Self::UnlabeledVariantRequiresSingleVariant(variant_id) => write!(
+                f,
+                "variant `{variant_id}` must have a label when its catalog item has multiple variants"
+            ),
             Self::DuplicateVariant(variant_id) => write!(f, "duplicate variant `{variant_id}`"),
             Self::VariantCurrencyMismatch { left, right } => write!(
                 f,
@@ -419,11 +445,18 @@ impl From<LabelError> for CatalogItemError {
 
 fn validate_variants(variants: &[Variant]) -> Result<(), CatalogItemError> {
     let mut variant_ids = BTreeSet::new();
+    let labels_are_required = variants.len() > 1;
     let first_variant = variants
         .first()
         .expect("validate_variants is only called after non-empty validation");
 
     for variant in variants {
+        if labels_are_required && variant.label.is_none() {
+            return Err(CatalogItemError::UnlabeledVariantRequiresSingleVariant(
+                variant.variant_id.clone(),
+            ));
+        }
+
         if !variant_ids.insert(variant.variant_id.clone()) {
             return Err(CatalogItemError::DuplicateVariant(
                 variant.variant_id.clone(),

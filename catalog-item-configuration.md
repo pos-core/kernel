@@ -46,6 +46,7 @@ The core should prefer `applicable` and `selected` for structural validity. `vis
 A catalog item configuration is valid when:
 
 - exactly one valid variant combination is resolved
+- a sole variant may be unlabeled, while every variant must have a label when multiple variants exist
 - every applicable required field is valid
 - every applicable required modifier prompt is valid
 - every nested applicable modifier prompt is valid
@@ -76,6 +77,8 @@ Examples:
 - catering package size
 
 A variant selection does not need to have a default. A merchant may provide a default variant for convenience, but the invariant is that a valid catalog item configuration must resolve a variant.
+
+A catalog item must define at least one priced variant. When an item has exactly one variant, that variant is the implicit configuration and may omit its label because there is no user-facing variant distinction to select. A sole variant may still have a label when the distinction is meaningful. Once an item has multiple variants, every variant must have a non-empty label. Expanding an unlabeled single-variant item into multiple variants therefore requires naming the existing variant as part of the same authoring change.
 
 Variant choices often need relationships. Some combinations are invalid for business reasons unrelated to stock, such as a small pizza not supporting a certain crust or a cold drink not supporting a hot-drink add-on.
 
@@ -218,7 +221,7 @@ An order-safe configuration snapshot should include:
 
 - catalog item ID and label
 - catalog version or catalog view identity used to resolve it
-- selected variant ID and label
+- selected variant ID and optional label; the label may be absent only for a sole implicit variant
 - variant invariant price
 - prompt IDs and labels
 - choice IDs and labels
@@ -277,7 +280,7 @@ Important consumer attributes may represent:
 
 Snapshots should preserve the resolved label values used at order time. They may also preserve the label ID for traceability, but rendering an old order must not require resolving the label from the current catalog.
 
-The current Rust code stores label-backed fields for catalog items, variants, prompts, choices, and prompt descriptions. Some getter names still expose `title` and `description` strings as compatibility/readability helpers over the default or resolved label value.
+The current Rust code stores label-backed fields for catalog items, labeled variants, prompts, choices, and prompt descriptions. A sole implicit variant may have no label; this is represented as label absence, never as an empty `Label`. Some getter names still expose `title` and `description` strings as compatibility/readability helpers over the default or resolved label value.
 
 ## Media
 

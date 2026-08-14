@@ -48,7 +48,7 @@ impl OrderItem {
                 variant_id: configured.variant_id().clone(),
             },
             configured.catalog_item_label_definition().clone(),
-            Some(configured.variant_label_definition().clone()),
+            configured.variant_label_definition().cloned(),
             quantity,
             configured.invariant_price().clone(),
             OrderItemModifierSnapshot::from_configuration_snapshot(&modifiers)?,

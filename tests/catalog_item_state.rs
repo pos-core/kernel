@@ -106,9 +106,9 @@ fn catalog_item_configures_known_variant_and_prices_shared_modifiers() {
         Some(&label_id("01PIZZA-TITLE"))
     );
     assert_eq!(configured.variant_id(), &large_id);
-    assert_eq!(configured.variant_label().value(), "Large thin");
+    assert_eq!(configured.variant_label().unwrap().value(), "Large thin");
     assert_eq!(
-        configured.variant_label().label_id(),
+        configured.variant_label().unwrap().label_id(),
         Some(&label_id("01LARGE-THIN-TITLE"))
     );
     assert_eq!(configured.effects().len(), 1);

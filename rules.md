@@ -34,6 +34,7 @@ This file is the hard operating agreement for POS Core Kernel. It should stay st
 - Catalog definitions should not store raw display strings directly on items, variants, prompts, choices, fields, categories, buttons, receipt text, prep text, or customer-facing text.
 - Labels may have stable IDs so catalog-authored strings can support translations, consumer-specific variants, and historical snapshots.
 - Custom/manual order labels use the same `Label` primitive with no ID.
+- A catalog item must have at least one priced variant. Its sole variant may omit a label because there is no user-facing distinction to select; when multiple variants exist, every variant requires a label.
 - Structural strings such as typed IDs, standard kinds, currency codes, and internal enum names are not labels.
 - Labels resolve against a `ConsumerProfile`, which is a compact set of generic `ConsumerAttribute` IDs.
 - Surfaces, fulfillment modes, locale preferences, printers, receipts, prep displays, and other consumers may contribute attributes to a profile.
