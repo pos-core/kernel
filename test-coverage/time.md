@@ -2,10 +2,19 @@
 
 Described behavior tests for UTC time and time zone primitives.
 
+## Definitions
+
+- [UTC time](../src/primitives/time/utc-time.md)
+- [Evaluation time](../src/primitives/time/evaluation-time.md)
+
+## Result
+
 - Generated: 2026-05-22 12:29:37 UTC
 - Total cases: 5
 - Passed: 5
 - Failed: 0
+
+## Behaviors
 
 | Test | Description | Status | Time |
 | --- | --- | --- | ---: |

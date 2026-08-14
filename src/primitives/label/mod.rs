@@ -3,6 +3,7 @@ use std::fmt;
 use crate::primitives::consumer::ConsumerProfile;
 use crate::primitives::ids::LabelId;
 
+#[doc = include_str!("label.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Label {
     label_id: Option<LabelId>,
@@ -219,97 +220,4 @@ fn display_label_id(label_id: Option<&LabelId>) -> String {
     label_id
         .map(ToString::to_string)
         .unwrap_or_else(|| "<none>".to_owned())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Label, LabelError};
-    use crate::primitives::consumer::ConsumerProfile;
-    use crate::primitives::ids::{ConsumerAttributeId, LabelId};
-
-    #[test]
-    fn label_resolves_the_most_specific_matching_consumer_profile_value() {
-        let web = attribute_id("WEB");
-        let delivery = attribute_id("DELIVERY");
-        let spanish = attribute_id("SPANISH");
-        let profile =
-            ConsumerProfile::new([web.clone(), delivery.clone(), spanish.clone()]).unwrap();
-        let label = Label::new(label_id("PEPPERONI"), "Pepperoni")
-            .unwrap()
-            .with_value(
-                ConsumerProfile::new([web.clone()]).unwrap(),
-                "Pepperoni topping",
-            )
-            .unwrap()
-            .with_value(
-                ConsumerProfile::new([web, delivery, spanish]).unwrap(),
-                "Pepperoni para entrega",
-            )
-            .unwrap();
-
-        let resolved = label.resolve(&profile).unwrap();
-
-        assert_eq!(resolved.value(), "Pepperoni para entrega");
-        assert_eq!(resolved.label_id(), Some(&label_id("PEPPERONI")));
-    }
-
-    #[test]
-    fn label_without_id_resolves_like_any_other_label() {
-        let label = Label::without_id("Custom sandwich").unwrap();
-        let resolved = label.resolve(&ConsumerProfile::empty()).unwrap();
-
-        assert_eq!(label.label_id(), None);
-        assert_eq!(resolved.label_id(), None);
-        assert_eq!(resolved.value(), "Custom sandwich");
-    }
-
-    #[test]
-    fn label_falls_back_to_default_when_no_consumer_profile_value_matches() {
-        let label = Label::new(label_id("PEPPERONI"), "Pepperoni")
-            .unwrap()
-            .with_value(
-                ConsumerProfile::new([attribute_id("WEB")]).unwrap(),
-                "Pepperoni topping",
-            )
-            .unwrap();
-
-        let resolved = label
-            .resolve(&ConsumerProfile::new([attribute_id("PREP")]).unwrap())
-            .unwrap();
-
-        assert_eq!(resolved.value(), "Pepperoni");
-        assert!(resolved.matched_profile().is_none());
-    }
-
-    #[test]
-    fn equally_specific_label_values_are_ambiguous() {
-        let web = attribute_id("WEB");
-        let delivery = attribute_id("DELIVERY");
-        let spanish = attribute_id("SPANISH");
-        let label = Label::new(label_id("PEPPERONI"), "Pepperoni")
-            .unwrap()
-            .with_value(
-                ConsumerProfile::new([web.clone(), delivery.clone()]).unwrap(),
-                "Delivery",
-            )
-            .unwrap()
-            .with_value(
-                ConsumerProfile::new([web.clone(), spanish.clone()]).unwrap(),
-                "Spanish",
-            )
-            .unwrap();
-
-        assert!(matches!(
-            label.resolve(&ConsumerProfile::new([web, delivery, spanish]).unwrap()),
-            Err(LabelError::AmbiguousResolution { specificity: 2, .. })
-        ));
-    }
-
-    fn attribute_id(suffix: &str) -> ConsumerAttributeId {
-        ConsumerAttributeId::from_suffix(suffix).unwrap()
-    }
-
-    fn label_id(suffix: &str) -> LabelId {
-        LabelId::from_suffix(suffix).unwrap()
-    }
 }

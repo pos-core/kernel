@@ -204,6 +204,7 @@ impl PriceFactor {
     }
 }
 
+#[doc = include_str!("modifier-pricing.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PricedConfiguration {
     contributions: Vec<PriceContribution>,

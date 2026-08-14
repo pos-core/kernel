@@ -3,6 +3,7 @@ use std::fmt;
 use crate::primitives::ids::{CatalogItemId, CatalogVersionId, ComponentId, EntryId, VariantId};
 use crate::primitives::money::{Money, MoneyError};
 
+#[doc = include_str!("order-entry.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OrderEntry {
     entry_id: EntryId,

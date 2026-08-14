@@ -12,6 +12,7 @@ use crate::primitives::ids::ComponentId;
 use crate::primitives::label::{Label, ResolvedLabel};
 use crate::primitives::money::Money;
 
+#[doc = include_str!("configuration.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Configuration {
     pub(super) prompts: Vec<PromptConfiguration>,
@@ -223,6 +224,7 @@ impl ChoiceConfiguration {
     }
 }
 
+#[doc = include_str!("configuration-snapshot.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ConfigurationSnapshot {
     prompts: Vec<PromptSnapshot>,

@@ -3,6 +3,7 @@ use std::fmt;
 
 use crate::primitives::time::TimeZone;
 
+#[doc = include_str!("logical-date.md")]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct LogicalDate {
     year: i32,
@@ -283,6 +284,7 @@ impl LogicalDateRange {
     }
 }
 
+#[doc = include_str!("calendar-moment.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct CalendarMoment {
     date: LogicalDate,
@@ -415,87 +417,4 @@ fn days_from_civil(year: i32, month: u8, day: u8) -> i64 {
     let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
 
     era * 146_097 + day_of_era - 719_468
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        CalendarError, CalendarMoment, DayOfWeek, DaysOfWeek, LocalTimeOfDay, LocalTimeRange,
-        LogicalDate, LogicalDateRange,
-    };
-    use crate::primitives::time::TimeZone;
-
-    #[test]
-    fn logical_dates_validate_months_days_and_leap_years() {
-        assert!(LogicalDate::new(2024, 2, 29).is_ok());
-        assert_eq!(
-            LogicalDate::new(2023, 2, 29),
-            Err(CalendarError::InvalidDay {
-                year: 2023,
-                month: 2,
-                day: 29
-            })
-        );
-        assert_eq!(
-            LogicalDate::new(2026, 13, 1),
-            Err(CalendarError::InvalidMonth(13))
-        );
-    }
-
-    #[test]
-    fn logical_dates_derive_day_of_week() {
-        let date = LogicalDate::new(2026, 5, 22).unwrap();
-
-        assert_eq!(date.day_of_week(), DayOfWeek::Friday);
-    }
-
-    #[test]
-    fn local_time_ranges_are_half_open_and_do_not_cross_midnight() {
-        let nine = LocalTimeOfDay::from_hms(9, 0, 0).unwrap();
-        let five = LocalTimeOfDay::from_hms(17, 0, 0).unwrap();
-        let range = LocalTimeRange::new(nine, five).unwrap();
-
-        assert!(range.contains(nine));
-        assert!(!range.contains(five));
-        assert_eq!(
-            LocalTimeRange::new(five, nine),
-            Err(CalendarError::InvalidTimeRange {
-                start_second: 61_200,
-                end_second: 32_400
-            })
-        );
-    }
-
-    #[test]
-    fn date_ranges_are_inclusive() {
-        let start = LogicalDate::new(2026, 5, 1).unwrap();
-        let end = LogicalDate::new(2026, 5, 31).unwrap();
-        let range = LogicalDateRange::new(start, end).unwrap();
-
-        assert!(range.contains(start));
-        assert!(range.contains(end));
-        assert!(!range.contains(LogicalDate::new(2026, 6, 1).unwrap()));
-    }
-
-    #[test]
-    fn calendar_moment_pairs_local_values_with_a_time_zone() {
-        let date = LogicalDate::new(2026, 5, 22).unwrap();
-        let moment = CalendarMoment::new(
-            date,
-            LocalTimeOfDay::from_hms(12, 30, 0).unwrap(),
-            TimeZone::parse("America/Los_Angeles").unwrap(),
-        );
-
-        assert_eq!(moment.date(), date);
-        assert_eq!(moment.day_of_week(), DayOfWeek::Friday);
-        assert_eq!(moment.time_of_day().hour(), 12);
-        assert_eq!(moment.time_zone().name(), "America/Los_Angeles");
-    }
-
-    #[test]
-    fn days_of_week_requires_at_least_one_day() {
-        assert_eq!(DaysOfWeek::new([]), Err(CalendarError::EmptyDaysOfWeek));
-        assert!(DaysOfWeek::weekdays().contains(DayOfWeek::Monday));
-        assert!(!DaysOfWeek::weekdays().contains(DayOfWeek::Sunday));
-    }
 }

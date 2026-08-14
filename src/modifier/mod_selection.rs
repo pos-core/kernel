@@ -1,5 +1,6 @@
 use crate::primitives::ids::ComponentId;
 
+#[doc = include_str!("selections.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Selections {
     prompts: Vec<PromptSelection>,

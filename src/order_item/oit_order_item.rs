@@ -13,6 +13,7 @@ use crate::primitives::ids::{
 use crate::primitives::label::Label;
 use crate::primitives::money::{CurrencyCode, Money, MoneyError, Rate};
 
+#[doc = include_str!("order-item.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OrderItem {
     order_item_id: OrderItemId,
@@ -310,6 +311,7 @@ pub enum OrderItemSource {
     Manual,
 }
 
+#[doc = include_str!("order-item-modifier-snapshot.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OrderItemModifierSnapshot {
     prompts: Vec<OrderItemPromptSnapshot>,

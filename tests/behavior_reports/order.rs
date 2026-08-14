@@ -1,7 +1,30 @@
 use pos_core_kernel::prelude::*;
 
+use crate::support::behavior::*;
+use crate::support::md_report::{DefinitionLink, ModuleReport};
+
+pub fn report() -> ModuleReport {
+    ModuleReport {
+        slug: "order",
+        title: "Order",
+        description: "Described behavior tests for order events, replay, entry sources, and derived totals.",
+        definitions: vec![
+            DefinitionLink::new("Order", "../src/order/order.md"),
+            DefinitionLink::new("Event envelope", "../src/event/event-envelope.md"),
+        ],
+        cases: vec![ORDER_EVENTS_REPLAY_TO_THE_SAME_STATE_AND_TOTALS.report_case()],
+    }
+}
+
+pub const ORDER_EVENTS_REPLAY_TO_THE_SAME_STATE_AND_TOTALS: DescribedBehavior =
+    DescribedBehavior::new(
+        "order events replay to the same state and totals",
+        "Applying order events incrementally and replaying their envelopes produce the same order state and reproducible amount-due total.",
+        order_events_replay_to_the_same_state_and_totals,
+    );
+
 #[test]
-fn order_events_replay_to_same_state_and_totals() {
+fn order_events_replay_to_the_same_state_and_totals() {
     let usd = CurrencyCode::parse("USD").unwrap();
     let actor = ActorContext::new(id::<ActorId>("01ACTOR"), ActorKind::StaffUser);
     let order_id = id::<OrderId>("01ORDER");
@@ -13,7 +36,6 @@ fn order_events_replay_to_same_state_and_totals() {
         1,
         Order::open_event(order_id.clone()),
     );
-
     let mut order = Order::replay(&[open.clone()]).unwrap();
 
     let burger = OrderEntry::builder(
@@ -30,7 +52,6 @@ fn order_events_replay_to_same_state_and_totals() {
     .with_price_category(PriceCategory::BaseItem)
     .build()
     .unwrap();
-
     let add_burger = order.add_entry_event(burger).unwrap();
     order.apply(&add_burger).unwrap();
 
@@ -48,7 +69,6 @@ fn order_events_replay_to_same_state_and_totals() {
     .with_price_category(PriceCategory::Modifier)
     .build()
     .unwrap();
-
     let add_cheese = order.add_entry_event(cheese).unwrap();
     order.apply(&add_cheese).unwrap();
 
@@ -67,12 +87,10 @@ fn order_events_replay_to_same_state_and_totals() {
     .with_price_category(PriceCategory::BaseItem)
     .build()
     .unwrap();
-
     assert_eq!(
         external_item.source().status(),
         EntrySourceStatus::ExternalUnmapped
     );
-
     let add_external = order.add_entry_event(external_item).unwrap();
     order.apply(&add_external).unwrap();
 
@@ -86,7 +104,6 @@ fn order_events_replay_to_same_state_and_totals() {
     )
     .build()
     .unwrap();
-
     let add_discount = order.add_entry_event(discount).unwrap();
     order.apply(&add_discount).unwrap();
 
@@ -97,7 +114,6 @@ fn order_events_replay_to_same_state_and_totals() {
         envelope("01EVENTEXTERNAL", actor.clone(), 4, add_external),
         envelope("01EVENTDISCOUNT", actor, 5, add_discount),
     ];
-
     let replayed = Order::replay(&events).unwrap();
 
     assert_eq!(order, replayed);

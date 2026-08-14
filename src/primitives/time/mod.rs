@@ -3,6 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::primitives::calendar::CalendarMoment;
 
+#[doc = include_str!("utc-time.md")]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct UtcTime {
     unix_millis: i64,
@@ -53,6 +54,7 @@ impl UtcTime {
     }
 }
 
+#[doc = include_str!("evaluation-time.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct EvaluationTime {
     utc_time: UtcTime,
@@ -193,96 +195,5 @@ fn validate_time_zone_name(name: &str) -> Result<(), TimeError> {
         Ok(())
     } else {
         Err(TimeError::InvalidTimeZone(name.to_owned()))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{EvaluationTime, TimeError, TimeZone, UtcTime};
-    use crate::primitives::calendar::{CalendarMoment, LocalTimeOfDay, LogicalDate};
-    use std::time::{Duration, UNIX_EPOCH};
-
-    #[test]
-    fn utc_time_stores_unix_milliseconds() {
-        let time = UtcTime::from_unix_millis(1_700_000_000_123);
-
-        assert_eq!(time.unix_millis(), 1_700_000_000_123);
-    }
-
-    #[test]
-    fn utc_time_converts_to_and_from_system_time() {
-        let after_epoch = UNIX_EPOCH + Duration::from_millis(1234);
-        let before_epoch = UNIX_EPOCH - Duration::from_millis(1234);
-
-        assert_eq!(
-            UtcTime::from_system_time(after_epoch).unwrap(),
-            UtcTime::from_unix_millis(1234)
-        );
-        assert_eq!(
-            UtcTime::from_system_time(before_epoch).unwrap(),
-            UtcTime::from_unix_millis(-1234)
-        );
-        assert_eq!(
-            UtcTime::from_unix_millis(1234).to_system_time().unwrap(),
-            after_epoch
-        );
-        assert_eq!(
-            UtcTime::from_unix_millis(-1234).to_system_time().unwrap(),
-            before_epoch
-        );
-    }
-
-    #[test]
-    fn utc_time_supports_checked_millisecond_arithmetic() {
-        let time = UtcTime::from_unix_millis(10);
-
-        assert_eq!(
-            time.checked_add_millis(5),
-            Some(UtcTime::from_unix_millis(15))
-        );
-        assert_eq!(
-            time.checked_sub_millis(15),
-            Some(UtcTime::from_unix_millis(-5))
-        );
-        assert!(
-            UtcTime::from_unix_millis(i64::MAX)
-                .checked_add_millis(1)
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn evaluation_time_pairs_utc_time_with_calendar_interpretation() {
-        let utc_time = UtcTime::from_unix_millis(1_777_777_777_000);
-        let calendar_moment = CalendarMoment::new(
-            LogicalDate::new(2026, 5, 22).unwrap(),
-            LocalTimeOfDay::from_hms(12, 30, 0).unwrap(),
-            TimeZone::parse("America/Los_Angeles").unwrap(),
-        );
-        let evaluation_time = EvaluationTime::new(utc_time, calendar_moment.clone());
-
-        assert_eq!(evaluation_time.utc_time(), utc_time);
-        assert_eq!(evaluation_time.calendar_moment(), &calendar_moment);
-    }
-
-    #[test]
-    fn time_zone_stores_valid_time_zone_names() {
-        let pacific = TimeZone::parse(" America/Los_Angeles ").unwrap();
-        let utc = TimeZone::utc();
-
-        assert_eq!(pacific.name(), "America/Los_Angeles");
-        assert_eq!(utc.name(), "UTC");
-        assert!(utc.is_utc());
-        assert_eq!(
-            TimeZone::parse("America//Los_Angeles"),
-            Err(TimeError::InvalidTimeZone(
-                "America//Los_Angeles".to_owned()
-            ))
-        );
-        assert_eq!(
-            TimeZone::parse("America/Los Angeles"),
-            Err(TimeError::InvalidTimeZone("America/Los Angeles".to_owned()))
-        );
-        assert_eq!(TimeZone::parse(" "), Err(TimeError::EmptyTimeZone));
     }
 }

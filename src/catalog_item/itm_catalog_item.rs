@@ -12,6 +12,7 @@ use crate::primitives::label::{Label, LabelError, ResolvedLabel};
 use crate::primitives::money::{Money, MoneyError};
 use crate::primitives::time::EvaluationTime;
 
+#[doc = include_str!("catalog-item.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct CatalogItem {
     catalog_item_id: CatalogItemId,
@@ -228,6 +229,7 @@ impl CatalogItem {
     }
 }
 
+#[doc = include_str!("variant.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Variant {
     variant_id: VariantId,
@@ -323,6 +325,7 @@ impl Variant {
     }
 }
 
+#[doc = include_str!("configured-catalog-item.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ConfiguredCatalogItem {
     catalog_item_id: CatalogItemId,

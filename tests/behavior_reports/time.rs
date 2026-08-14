@@ -1,49 +1,50 @@
 use pos_core_kernel::prelude::*;
 
 use crate::support::behavior::*;
-use crate::support::md_report::ModuleReport;
+use crate::support::md_report::{DefinitionLink, ModuleReport};
 
 pub fn report() -> ModuleReport {
     ModuleReport {
         slug: "time",
         title: "Time",
         description: "Described behavior tests for UTC time and time zone primitives.",
+        definitions: vec![
+            DefinitionLink::new("UTC time", "../src/primitives/time/utc-time.md"),
+            DefinitionLink::new(
+                "Evaluation time",
+                "../src/primitives/time/evaluation-time.md",
+            ),
+        ],
         cases: vec![
-            case(
-                "utc time stores unix milliseconds",
-                "UtcTime is a UTC instant represented by Unix milliseconds and does not own an ID.",
-                utc_time_stores_unix_milliseconds,
-            ),
-            case(
-                "utc time converts to and from system time",
-                "UtcTime can convert to and from SystemTime on both sides of the Unix epoch.",
-                utc_time_converts_to_and_from_system_time,
-            ),
-            case(
-                "utc time supports checked millisecond arithmetic",
-                "UtcTime exposes checked millisecond arithmetic so overflows are explicit.",
-                utc_time_supports_checked_millisecond_arithmetic,
-            ),
-            case(
-                "evaluation time pairs utc and calendar time",
-                "EvaluationTime carries the explicit UTC instant and local calendar interpretation used by time-dependent domain logic.",
-                evaluation_time_pairs_utc_and_calendar_time,
-            ),
-            case(
-                "time zone validates iana shaped names",
-                "TimeZone stores an IANA/tzdb-style zone name without attempting to resolve rule data.",
-                time_zone_validates_iana_shaped_names,
-            ),
+            UTC_TIME_STORES_UNIX_MILLISECONDS.report_case(),
+            UTC_TIME_CONVERTS_TO_AND_FROM_SYSTEM_TIME.report_case(),
+            UTC_TIME_SUPPORTS_CHECKED_MILLISECOND_ARITHMETIC.report_case(),
+            EVALUATION_TIME_PAIRS_UTC_AND_CALENDAR_TIME.report_case(),
+            TIME_ZONE_VALIDATES_IANA_SHAPED_NAMES.report_case(),
         ],
     }
 }
 
+pub const UTC_TIME_STORES_UNIX_MILLISECONDS: DescribedBehavior = DescribedBehavior::new(
+    "utc time stores unix milliseconds",
+    "UtcTime is a UTC instant represented by Unix milliseconds and does not own an ID.",
+    utc_time_stores_unix_milliseconds,
+);
+
+#[test]
 fn utc_time_stores_unix_milliseconds() {
     let time = UtcTime::from_unix_millis(1_700_000_000_123);
 
     assert_eq!(time.unix_millis(), 1_700_000_000_123);
 }
 
+pub const UTC_TIME_CONVERTS_TO_AND_FROM_SYSTEM_TIME: DescribedBehavior = DescribedBehavior::new(
+    "utc time converts to and from system time",
+    "UtcTime can convert to and from SystemTime on both sides of the Unix epoch.",
+    utc_time_converts_to_and_from_system_time,
+);
+
+#[test]
 fn utc_time_converts_to_and_from_system_time() {
     let after_epoch = std::time::UNIX_EPOCH + std::time::Duration::from_millis(1234);
     let before_epoch = std::time::UNIX_EPOCH - std::time::Duration::from_millis(1234);
@@ -66,6 +67,14 @@ fn utc_time_converts_to_and_from_system_time() {
     );
 }
 
+pub const UTC_TIME_SUPPORTS_CHECKED_MILLISECOND_ARITHMETIC: DescribedBehavior =
+    DescribedBehavior::new(
+        "utc time supports checked millisecond arithmetic",
+        "UtcTime exposes checked millisecond arithmetic so overflows are explicit.",
+        utc_time_supports_checked_millisecond_arithmetic,
+    );
+
+#[test]
 fn utc_time_supports_checked_millisecond_arithmetic() {
     let time = UtcTime::from_unix_millis(10);
 
@@ -84,6 +93,13 @@ fn utc_time_supports_checked_millisecond_arithmetic() {
     );
 }
 
+pub const EVALUATION_TIME_PAIRS_UTC_AND_CALENDAR_TIME: DescribedBehavior = DescribedBehavior::new(
+    "evaluation time pairs utc and calendar time",
+    "EvaluationTime carries the explicit UTC instant and local calendar interpretation used by time-dependent domain logic.",
+    evaluation_time_pairs_utc_and_calendar_time,
+);
+
+#[test]
 fn evaluation_time_pairs_utc_and_calendar_time() {
     let utc_time = UtcTime::from_unix_millis(1_779_452_977_000);
     let calendar_moment = CalendarMoment::new(
@@ -97,6 +113,13 @@ fn evaluation_time_pairs_utc_and_calendar_time() {
     assert_eq!(evaluation_time.calendar_moment(), &calendar_moment);
 }
 
+pub const TIME_ZONE_VALIDATES_IANA_SHAPED_NAMES: DescribedBehavior = DescribedBehavior::new(
+    "time zone validates iana shaped names",
+    "TimeZone stores an IANA/tzdb-style zone name without attempting to resolve rule data.",
+    time_zone_validates_iana_shaped_names,
+);
+
+#[test]
 fn time_zone_validates_iana_shaped_names() {
     let pacific = TimeZone::parse(" America/Los_Angeles ").unwrap();
     let utc = TimeZone::utc();

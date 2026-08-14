@@ -2,10 +2,18 @@
 
 Described behavior tests for media collections, MIME metadata, dimensions, and consumer-profile variants.
 
+## Definitions
+
+- [Media](../src/primitives/media/media.md)
+
+## Result
+
 - Generated: 2026-05-22 12:29:37 UTC
 - Total cases: 5
 - Passed: 5
 - Failed: 0
+
+## Behaviors
 
 | Test | Description | Status | Time |
 | --- | --- | --- | ---: |

@@ -5,6 +5,7 @@ use crate::entry::OrderEntry;
 use crate::event::EventEnvelope;
 use crate::primitives::ids::{EntryId, OrderId};
 
+#[doc = include_str!("order.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Order {
     order_id: OrderId,

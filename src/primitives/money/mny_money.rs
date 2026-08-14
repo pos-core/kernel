@@ -26,6 +26,7 @@ impl fmt::Display for CurrencyCode {
     }
 }
 
+#[doc = include_str!("money.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Money {
     amount_minor: i64,
@@ -382,60 +383,4 @@ fn ceil_div(numerator: i128, denominator: i128) -> Result<i128, MoneyError> {
         .ok_or(MoneyError::Overflow)?;
 
     Ok(adjusted / denominator)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{CurrencyCode, Money, Rate, RoundingStrategy};
-
-    #[test]
-    fn money_uses_checked_minor_units() {
-        let usd = CurrencyCode::parse("USD").unwrap();
-        let one = Money::new(100, usd.clone());
-        let two = Money::new(250, usd);
-
-        assert_eq!(one.checked_add(&two).unwrap().amount_minor(), 350);
-    }
-
-    #[test]
-    fn money_multiplies_by_integer_rates_with_named_rounding() {
-        let usd = CurrencyCode::parse("USD").unwrap();
-        let amount = Money::new(199, usd);
-
-        assert_eq!(
-            amount
-                .checked_mul_rate(Rate::percent(50), RoundingStrategy::CentRoundDown)
-                .unwrap()
-                .amount_minor(),
-            99
-        );
-        assert_eq!(
-            amount
-                .checked_mul_rate(Rate::percent(50), RoundingStrategy::CentRoundUp)
-                .unwrap()
-                .amount_minor(),
-            100
-        );
-    }
-
-    #[test]
-    fn money_rounds_up_to_named_increment_and_ending_targets() {
-        let usd = CurrencyCode::parse("USD").unwrap();
-        let amount = Money::new(201, usd);
-
-        assert_eq!(
-            amount
-                .checked_mul_rate(Rate::one(), RoundingStrategy::NearestUpIncrement(25))
-                .unwrap()
-                .amount_minor(),
-            225
-        );
-        assert_eq!(
-            amount
-                .checked_mul_rate(Rate::one(), RoundingStrategy::NearestUpEnding(99))
-                .unwrap()
-                .amount_minor(),
-            299
-        );
-    }
 }

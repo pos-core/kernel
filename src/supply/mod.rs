@@ -58,6 +58,7 @@ impl fmt::Display for SupplyKey {
     }
 }
 
+#[doc = include_str!("supply-bucket.md")]
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
 pub struct SupplyBucket {
     dimensions: BTreeMap<String, String>,
@@ -179,6 +180,7 @@ pub trait SupplyProvider {
     fn resolve_supply(&self, request: &SupplyRequest) -> SupplyResolution;
 }
 
+#[doc = include_str!("supply-view.md")]
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct SupplyView {
     available: BTreeMap<SupplyAvailabilityKey, AvailableSupply>,
@@ -352,6 +354,7 @@ impl SupplyUnconsume {
     }
 }
 
+#[doc = include_str!("supply-ledger.md")]
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct SupplyLedger {
     claims: BTreeMap<SupplyClaimId, SupplyClaimState>,
@@ -594,243 +597,5 @@ impl SupplyAvailabilityKey {
 impl SupplyRequest {
     fn matches(&self, target: &SupplyTarget, bucket: &SupplyBucket) -> bool {
         self.target() == target && self.bucket() == bucket
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        AvailableSupply, SupplyBucket, SupplyClaimState, SupplyConsume, SupplyError, SupplyKey,
-        SupplyLedger, SupplyOperation, SupplyOperationKind, SupplyProvider, SupplyRequest,
-        SupplyReserve, SupplyResolution, SupplyTarget, SupplyUnavailableReason, SupplyUnconsume,
-        SupplyUnreserve, SupplyUnresolvedReason, SupplyView,
-    };
-    use crate::primitives::ids::{CatalogItemId, ComponentId, SupplyClaimId};
-
-    #[test]
-    fn supply_view_resolves_available_unavailable_and_unresolved_requests() {
-        let target = SupplyTarget::choice(component_id("01PEPPER"));
-        let view = SupplyView::new(vec![AvailableSupply::new(
-            target.clone(),
-            SupplyBucket::empty(),
-            3,
-        )])
-        .unwrap();
-
-        assert_eq!(
-            view.resolve_supply(&request(target.clone(), 2)),
-            SupplyResolution::Available {
-                requested: 2,
-                available: 3
-            }
-        );
-        assert_eq!(
-            view.resolve_supply(&request(target.clone(), 5)),
-            SupplyResolution::Unavailable {
-                requested: 5,
-                available: 3,
-                reason: SupplyUnavailableReason::InsufficientSupply
-            }
-        );
-        assert_eq!(
-            view.resolve_supply(&request(SupplyTarget::catalog_item(item_id("01PIZZA")), 1)),
-            SupplyResolution::Unresolved {
-                reason: SupplyUnresolvedReason::MissingAvailableSupply
-            }
-        );
-    }
-
-    #[test]
-    fn supply_buckets_distinguish_calculated_supply() {
-        let target = SupplyTarget::custom("delivery-slot").unwrap();
-        let six_pm = bucket("time-window", "18:00-18:30");
-        let seven_pm = bucket("time-window", "19:00-19:30");
-        let view = SupplyView::new(vec![AvailableSupply::new(
-            target.clone(),
-            six_pm.clone(),
-            2,
-        )])
-        .unwrap();
-
-        assert!(
-            view.resolve_supply(&request(target.clone(), 1).with_bucket(six_pm))
-                .is_available()
-        );
-        assert!(
-            view.resolve_supply(&request(target, 1).with_bucket(seven_pm))
-                .is_unresolved()
-        );
-    }
-
-    #[test]
-    fn supply_keys_and_requests_validate_their_shape() {
-        assert_eq!(SupplyKey::new(" "), Err(SupplyError::EmptySupplyKey));
-        assert_eq!(
-            SupplyBucket::empty().with_dimension("", "x"),
-            Err(SupplyError::EmptyBucketDimensionKey)
-        );
-        assert_eq!(
-            SupplyRequest::new(SupplyTarget::custom("daily-cap").unwrap(), 0),
-            Err(SupplyError::ZeroSupplyQuantity)
-        );
-    }
-
-    #[test]
-    fn supply_reserve_and_unreserve_are_a_reversible_pair() {
-        let claim_id = claim_id("01CLAIM");
-        let target = SupplyTarget::choice(component_id("01PEPPER"));
-        let request = request(target.clone(), 2);
-        let mut ledger = SupplyLedger::new();
-
-        ledger
-            .apply(SupplyOperation::Reserve(SupplyReserve::new(
-                claim_id.clone(),
-                request.clone(),
-            )))
-            .unwrap();
-
-        assert_eq!(
-            ledger.claim(&claim_id),
-            Some(&SupplyClaimState::Reserved {
-                request: request.clone()
-            })
-        );
-        assert_eq!(ledger.reserved_quantity(&target, &SupplyBucket::empty()), 2);
-
-        ledger
-            .apply(SupplyOperation::Unreserve(SupplyUnreserve::new(
-                claim_id.clone(),
-            )))
-            .unwrap();
-
-        assert_eq!(
-            ledger.claim(&claim_id),
-            Some(&SupplyClaimState::Unreserved { request })
-        );
-        assert_eq!(ledger.reserved_quantity(&target, &SupplyBucket::empty()), 0);
-    }
-
-    #[test]
-    fn supply_consume_and_unconsume_are_a_reversible_pair() {
-        let claim_id = claim_id("01CLAIM");
-        let target = SupplyTarget::custom("brunch-special").unwrap();
-        let request = request(target.clone(), 1);
-        let mut ledger = SupplyLedger::new();
-
-        ledger
-            .apply(SupplyOperation::Consume(SupplyConsume::new(
-                claim_id.clone(),
-                request.clone(),
-            )))
-            .unwrap();
-
-        assert_eq!(ledger.consumed_quantity(&target, &SupplyBucket::empty()), 1);
-
-        ledger
-            .apply(SupplyOperation::Unconsume(SupplyUnconsume::new(
-                claim_id.clone(),
-            )))
-            .unwrap();
-
-        assert_eq!(
-            ledger.claim(&claim_id),
-            Some(&SupplyClaimState::Unconsumed { request })
-        );
-        assert_eq!(ledger.consumed_quantity(&target, &SupplyBucket::empty()), 0);
-    }
-
-    #[test]
-    fn supply_consume_can_commit_a_matching_reservation() {
-        let claim_id = claim_id("01CLAIM");
-        let request = request(SupplyTarget::choice(component_id("01PEPPER")), 1);
-        let mut ledger = SupplyLedger::new();
-
-        ledger
-            .apply(SupplyOperation::Reserve(SupplyReserve::new(
-                claim_id.clone(),
-                request.clone(),
-            )))
-            .unwrap();
-        ledger
-            .apply(SupplyOperation::Consume(SupplyConsume::new(
-                claim_id.clone(),
-                request.clone(),
-            )))
-            .unwrap();
-
-        assert_eq!(
-            ledger.claim(&claim_id),
-            Some(&SupplyClaimState::Consumed { request })
-        );
-    }
-
-    #[test]
-    fn supply_ledger_rejects_invalid_transitions_and_mismatched_consumes() {
-        let claim_id = claim_id("01CLAIM");
-        let pepperoni_request = request(SupplyTarget::choice(component_id("01PEPPER")), 1);
-        let mismatch = request(SupplyTarget::choice(component_id("01BACON")), 1);
-        let mut ledger = SupplyLedger::new();
-
-        assert_eq!(
-            ledger.apply(SupplyOperation::Unreserve(SupplyUnreserve::new(
-                claim_id.clone()
-            ))),
-            Err(SupplyError::UnknownSupplyClaim(claim_id.clone()))
-        );
-
-        ledger
-            .apply(SupplyOperation::Reserve(SupplyReserve::new(
-                claim_id.clone(),
-                pepperoni_request.clone(),
-            )))
-            .unwrap();
-
-        assert_eq!(
-            ledger.apply(SupplyOperation::Consume(SupplyConsume::new(
-                claim_id.clone(),
-                mismatch.clone()
-            ))),
-            Err(SupplyError::MismatchedSupplyClaim {
-                claim_id: claim_id.clone(),
-                expected: pepperoni_request,
-                actual: mismatch
-            })
-        );
-
-        ledger
-            .apply(SupplyOperation::Unreserve(SupplyUnreserve::new(
-                claim_id.clone(),
-            )))
-            .unwrap();
-
-        assert!(matches!(
-            ledger.apply(SupplyOperation::Unconsume(SupplyUnconsume::new(
-                claim_id.clone()
-            ))),
-            Err(SupplyError::InvalidSupplyTransition {
-                operation: SupplyOperationKind::Unconsume,
-                ..
-            })
-        ));
-    }
-
-    fn request(target: SupplyTarget, quantity: u32) -> SupplyRequest {
-        SupplyRequest::new(target, quantity).unwrap()
-    }
-
-    fn bucket(key: &str, value: &str) -> SupplyBucket {
-        SupplyBucket::empty().with_dimension(key, value).unwrap()
-    }
-
-    fn component_id(suffix: &str) -> ComponentId {
-        ComponentId::from_suffix(suffix).unwrap()
-    }
-
-    fn item_id(suffix: &str) -> CatalogItemId {
-        CatalogItemId::from_suffix(suffix).unwrap()
-    }
-
-    fn claim_id(suffix: &str) -> SupplyClaimId {
-        SupplyClaimId::from_suffix(suffix).unwrap()
     }
 }

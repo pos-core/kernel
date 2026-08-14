@@ -1,194 +1,76 @@
 use pos_core_kernel::prelude::*;
 
 use crate::support::behavior::*;
-use crate::support::md_report::ModuleReport;
+use crate::support::md_report::{DefinitionLink, ModuleReport};
 
 pub fn report() -> ModuleReport {
     ModuleReport {
         slug: "modifier",
         title: "Modifier",
         description: "Described behavior tests for prompts, choices, rules, hydration, dehydration, and pricing.",
+        definitions: vec![
+            DefinitionLink::new("Modifier definitions", "../src/modifier/modifiers.md"),
+            DefinitionLink::new("Selections", "../src/modifier/selections.md"),
+            DefinitionLink::new("Configuration", "../src/modifier/configuration.md"),
+            DefinitionLink::new(
+                "Configuration snapshot",
+                "../src/modifier/configuration-snapshot.md",
+            ),
+            DefinitionLink::new("Modifier pricing", "../src/modifier/modifier-pricing.md"),
+        ],
         cases: vec![
-            case(
-                "defaults dehydrate into the effective selection snapshot",
-                "Default choices hydrate into configuration and dehydrate with default source so an order snapshot preserves what was selected at the time.",
-                defaults_dehydrate_into_the_effective_selection_snapshot,
-            ),
-            case(
-                "snapshot preserves default selections labels and price facts",
-                "A modifier snapshot includes default selections, prompt and choice labels, price definitions, price contributions, and totals.",
-                snapshot_preserves_default_selections_labels_and_price_facts,
-            ),
-            case(
-                "defaults must satisfy prompt min and max rules",
-                "Choice defaults are validated against the containing prompt selection count rules.",
-                defaults_must_satisfy_prompt_min_and_max_rules,
-            ),
-            case(
-                "explicit selections replace defaults for a prompt",
-                "An explicit selection suppresses default choices on the same prompt instead of merging with them.",
-                explicit_selections_replace_defaults_for_a_prompt,
-            ),
-            case(
-                "prompt min and max rules validate selection counts",
-                "Prompt Min and Max rules validate the summed selected counts across choices.",
-                prompt_min_and_max_rules_validate_selection_counts,
-            ),
-            case(
-                "max zero prompt allows no selection and rejects any selection",
-                "A prompt with Max(0) is valid when empty and invalid when any choice is selected.",
-                max_zero_prompt_allows_no_selection_and_rejects_any_selection,
-            ),
-            case(
-                "optional prompt without selection hydrates empty configuration",
-                "An optional prompt with no selected choices still appears in hydrated configuration with an empty choice list.",
-                optional_prompt_without_selection_hydrates_empty_configuration,
-            ),
-            case(
-                "scheduled choice requires evaluation time when selected",
-                "A selected choice with a schedule cannot be hydrated unless the caller supplies explicit EvaluationTime.",
-                scheduled_choice_requires_evaluation_time_when_selected,
-            ),
-            case(
-                "scheduled choice hydrates only inside its schedule",
-                "A scheduled choice accepts selections inside its own schedule and rejects selections outside it.",
-                scheduled_choice_hydrates_only_inside_its_schedule,
-            ),
-            case(
-                "scheduled choice is not visible outside its schedule",
-                "A scheduled choice is filtered from visible modifier traversal when EvaluationTime falls outside its schedule.",
-                scheduled_choice_is_not_visible_outside_its_schedule,
-            ),
-            case(
-                "scheduled default choice uses supplied evaluation time",
-                "A scheduled default choice requires EvaluationTime and only defaults when its schedule includes that time.",
-                scheduled_default_choice_uses_supplied_evaluation_time,
-            ),
-            case(
-                "choice rules apply to selected choice quantity",
-                "Choice-level Min and Max rules validate the selected count on that choice.",
-                choice_rules_apply_to_selected_choice_quantity,
-            ),
-            case(
-                "choice default rules are unique nonzero and within choice bounds",
-                "A choice default must be unique, greater than zero, and valid against the choice's own Min and Max rules.",
-                choice_default_rules_are_unique_nonzero_and_within_choice_bounds,
-            ),
-            case(
-                "duplicate choice selections are rejected even with different nested selections",
-                "A prompt cannot select the same choice ID twice; distinct configuration must be modeled below the selected choice.",
-                duplicate_choice_selections_are_rejected_even_with_different_nested_selections,
-            ),
-            case(
-                "prompt rejects zero duplicate and unknown choice selections",
-                "Prompt validation rejects zero counts, repeated choice IDs, and choice IDs that do not exist under the prompt.",
-                prompt_rejects_zero_duplicate_and_unknown_choice_selections,
-            ),
-            case(
-                "prompt rejects selection count overflow",
-                "Prompt validation uses checked arithmetic while summing selected counts.",
-                prompt_rejects_selection_count_overflow,
-            ),
-            case(
-                "duplicate min or max rules are rejected",
-                "Each rule kind can appear at most once in a prompt or choice rule set.",
-                duplicate_min_or_max_rules_are_rejected,
-            ),
-            case(
-                "definitions reject empty titles invalid prompt rules and empty required prompts",
-                "Definition construction validates prompt and choice titles, rejects prompt defaults, and rejects required prompts with no choices.",
-                definitions_reject_empty_titles_invalid_prompt_rules_and_empty_required_prompts,
-            ),
-            case(
-                "definitions reject invalid min max constraints and duplicate choice definitions",
-                "Definition construction rejects Min greater than Max and duplicate choice IDs inside a prompt definition.",
-                definitions_reject_invalid_min_max_constraints_and_duplicate_choice_definitions,
-            ),
-            case(
-                "configuration dehydrates nested choices and round trips",
-                "Explicit nested choices survive hydrate, dehydrate, and rehydrate without changing configuration.",
-                configuration_dehydrates_nested_choices_and_round_trips,
-            ),
-            case(
-                "three level nested selection dehydrates and round trips",
-                "Deeply nested explicit selections remain stable across hydrate and dehydrate.",
-                three_level_nested_selection_dehydrates_and_round_trips,
-            ),
-            case(
-                "nested required prompts must be satisfied when parent choice is selected",
-                "Selecting a choice with required nested modifiers validates the nested required prompt immediately.",
-                nested_required_prompts_must_be_satisfied_when_parent_choice_is_selected,
-            ),
-            case(
-                "nested defaults dehydrate into the effective selection snapshot",
-                "Nested defaults under an explicit parent choice are included in the dehydrated snapshot with default source.",
-                nested_defaults_dehydrate_into_the_effective_selection_snapshot,
-            ),
-            case(
-                "same modifiers can hold repeated prompt IDs as ordered instances",
-                "Repeated prompt IDs in one modifier container hydrate by occurrence and dehydrate back as ordered prompt instances.",
-                same_modifiers_can_hold_repeated_prompt_ids_as_ordered_instances,
-            ),
-            case(
-                "same prompt and choice IDs can be reused in different branches",
-                "Prompt and choice IDs can recur in separate branches because nested structure scopes selection lookup.",
-                same_prompt_and_choice_ids_can_be_reused_in_different_branches,
-            ),
-            case(
-                "strict hydrate rejects unknown prompt selections and extra prompt occurrences",
-                "Strict hydration rejects prompt selections that are not present at the current modifier level, including too many repeated occurrences.",
-                strict_hydrate_rejects_unknown_prompt_selections_and_extra_prompt_occurrences,
-            ),
-            case(
-                "strict hydrate rejects nested selections for terminal choices",
-                "Choices without nested modifiers reject unexpected nested selection payloads.",
-                strict_hydrate_rejects_nested_selections_for_terminal_choices,
-            ),
-            case(
-                "titled modifiers expose title without affecting hydration",
-                "A modifier title is descriptive metadata and does not affect selection hydration.",
-                titled_modifiers_expose_title_without_affecting_hydration,
-            ),
-            case(
-                "modifiers can walk nested definition tree",
-                "The definition walker visits modifiers, prompts, and choices in nested order.",
-                modifiers_can_walk_nested_definition_tree,
-            ),
-            case(
-                "prompt validation returns effects and nested modifier definitions",
-                "Validated choice selections carry the choice effects and nested modifier definition needed by consumers.",
-                prompt_validation_returns_effects_and_nested_modifier_definitions,
-            ),
-            case(
-                "flat modifier price is multiplied by selected factor",
-                "A priced choice emits one contribution and selected child factor choices multiply that contribution upward.",
-                flat_modifier_price_is_multiplied_by_selected_factor,
-            ),
-            case(
-                "invariant rate price adds to flat amount without floats",
-                "A choice can add a flat amount plus an integer rate of the selected variant invariant price.",
-                invariant_rate_price_adds_to_flat_amount_without_floats,
-            ),
-            case(
-                "nested factors multiply up to the nearest priced ancestor",
-                "Factor choices can stack through nested modifiers and are consumed by the nearest priced ancestor branch.",
-                nested_factors_multiply_up_to_the_nearest_priced_ancestor,
-            ),
-            case(
-                "defaults are free unless pricing policy says otherwise",
-                "Default selected priced choices contribute zero by default, and the pricing policy can opt into charging them.",
-                defaults_are_free_unless_pricing_policy_says_otherwise,
-            ),
-            case(
-                "unconsumed root factor is invalid",
-                "A factor choice with no priced ancestor is rejected instead of silently disappearing.",
-                unconsumed_root_factor_is_invalid,
-            ),
+            DEFAULTS_DEHYDRATE_INTO_EFFECTIVE_SELECTIONS.report_case(),
+            CONFIGURATION_SNAPSHOT_PRESERVES_DEFAULT_SELECTIONS_LABELS_AND_PRICE_FACTS
+                .report_case(),
+            DEFAULTS_MUST_SATISFY_PROMPT_MIN_AND_MAX_RULES.report_case(),
+            EXPLICIT_SELECTIONS_REPLACE_DEFAULTS_FOR_A_PROMPT.report_case(),
+            PROMPT_MIN_AND_MAX_RULES_VALIDATE_SELECTION_COUNTS.report_case(),
+            MAX_ZERO_PROMPT_ALLOWS_NO_SELECTION_AND_REJECTS_ANY_SELECTION.report_case(),
+            OPTIONAL_PROMPT_WITHOUT_SELECTION_HYDRATES_EMPTY_CONFIGURATION.report_case(),
+            SCHEDULED_CHOICE_REQUIRES_EVALUATION_TIME_WHEN_SELECTED.report_case(),
+            SCHEDULED_CHOICE_HYDRATES_ONLY_INSIDE_ITS_SCHEDULE.report_case(),
+            SCHEDULED_CHOICE_IS_NOT_VISIBLE_OUTSIDE_ITS_SCHEDULE.report_case(),
+            SCHEDULED_DEFAULT_CHOICE_USES_SUPPLIED_EVALUATION_TIME.report_case(),
+            CHOICE_RULES_APPLY_TO_SELECTED_CHOICE_QUANTITY.report_case(),
+            CHOICE_DEFAULT_RULES_ARE_UNIQUE_NONZERO_AND_WITHIN_CHOICE_BOUNDS.report_case(),
+            DUPLICATE_CHOICE_SELECTIONS_ARE_REJECTED_EVEN_WITH_DIFFERENT_NESTED_SELECTIONS
+                .report_case(),
+            PROMPT_REJECTS_ZERO_DUPLICATE_AND_UNKNOWN_CHOICE_SELECTIONS.report_case(),
+            PROMPT_REJECTS_SELECTION_COUNT_OVERFLOW.report_case(),
+            DUPLICATE_MIN_OR_MAX_RULES_ARE_REJECTED.report_case(),
+            DEFINITIONS_REJECT_EMPTY_TITLES_INVALID_PROMPT_RULES_AND_EMPTY_REQUIRED_PROMPTS
+                .report_case(),
+            DEFINITIONS_REJECT_INVALID_MIN_MAX_CONSTRAINTS_AND_DUPLICATE_CHOICE_DEFINITIONS
+                .report_case(),
+            CONFIGURATION_DEHYDRATES_NESTED_CHOICES_AND_ROUND_TRIPS.report_case(),
+            THREE_LEVEL_NESTED_SELECTION_DEHYDRATES_AND_ROUND_TRIPS.report_case(),
+            NESTED_REQUIRED_PROMPTS_MUST_BE_SATISFIED_WHEN_PARENT_CHOICE_IS_SELECTED.report_case(),
+            NESTED_DEFAULTS_DEHYDRATE_INTO_EFFECTIVE_SELECTIONS.report_case(),
+            SAME_MODIFIERS_CAN_HOLD_REPEATED_PROMPT_IDS_AS_ORDERED_INSTANCES.report_case(),
+            SAME_PROMPT_AND_CHOICE_IDS_CAN_BE_REUSED_IN_DIFFERENT_BRANCHES.report_case(),
+            STRICT_HYDRATE_REJECTS_UNKNOWN_PROMPT_SELECTIONS_AND_EXTRA_PROMPT_OCCURRENCES
+                .report_case(),
+            STRICT_HYDRATE_REJECTS_NESTED_SELECTIONS_FOR_TERMINAL_CHOICES.report_case(),
+            TITLED_MODIFIERS_EXPOSE_TITLE_WITHOUT_AFFECTING_HYDRATION.report_case(),
+            MODIFIERS_CAN_WALK_NESTED_DEFINITION_TREE.report_case(),
+            PROMPT_VALIDATION_RETURNS_EFFECTS_AND_NESTED_MODIFIER_DEFINITIONS.report_case(),
+            FLAT_MODIFIER_PRICE_IS_MULTIPLIED_BY_SELECTED_FACTOR.report_case(),
+            INVARIANT_RATE_PRICE_ADDS_TO_FLAT_AMOUNT_WITHOUT_FLOATS.report_case(),
+            NESTED_FACTORS_MULTIPLY_UP_TO_THE_NEAREST_PRICED_ANCESTOR.report_case(),
+            DEFAULTS_ARE_FREE_UNLESS_PRICING_POLICY_SAYS_OTHERWISE.report_case(),
+            UNCONSUMED_ROOT_FACTOR_IS_INVALID.report_case(),
         ],
     }
 }
 
-fn defaults_dehydrate_into_the_effective_selection_snapshot() {
+pub const DEFAULTS_DEHYDRATE_INTO_EFFECTIVE_SELECTIONS: DescribedBehavior = DescribedBehavior::new(
+    "defaults dehydrate into effective selections",
+    "Default choices hydrate into configuration and dehydrate into effective selections with their default source preserved.",
+    defaults_dehydrate_into_effective_selections,
+);
+
+#[test]
+fn defaults_dehydrate_into_effective_selections() {
     let cheese_id = component_id("01CHEESE");
     let american_id = component_id("01AMERICAN");
     let modifiers = Modifiers::new(vec![cheese_prompt_with_default(
@@ -211,7 +93,15 @@ fn defaults_dehydrate_into_the_effective_selection_snapshot() {
     assert_eq!(modifiers.hydrate(&dehydrated).unwrap(), configuration);
 }
 
-fn snapshot_preserves_default_selections_labels_and_price_facts() {
+pub const CONFIGURATION_SNAPSHOT_PRESERVES_DEFAULT_SELECTIONS_LABELS_AND_PRICE_FACTS:
+    DescribedBehavior = DescribedBehavior::new(
+    "configuration snapshot preserves default selections labels and price facts",
+    "A configuration snapshot includes default selections, prompt and choice labels, price definitions, price contributions, and the modifier total.",
+    configuration_snapshot_preserves_default_selections_labels_and_price_facts,
+);
+
+#[test]
+fn configuration_snapshot_preserves_default_selections_labels_and_price_facts() {
     let cheese_id = component_id("01CHEESE");
     let american_id = component_id("01AMERICAN");
     let modifiers = Modifiers::new(vec![
@@ -267,6 +157,14 @@ fn snapshot_preserves_default_selections_labels_and_price_facts() {
     assert_eq!(snapshot.price().total().amount_minor(), 75);
 }
 
+pub const DEFAULTS_MUST_SATISFY_PROMPT_MIN_AND_MAX_RULES: DescribedBehavior =
+    DescribedBehavior::new(
+        "defaults must satisfy prompt min and max rules",
+        "Choice defaults are validated against the containing prompt selection count rules.",
+        defaults_must_satisfy_prompt_min_and_max_rules,
+    );
+
+#[test]
 fn defaults_must_satisfy_prompt_min_and_max_rules() {
     let below_min = Modifiers::new(vec![
         Prompt::new(
@@ -333,6 +231,14 @@ fn defaults_must_satisfy_prompt_min_and_max_rules() {
     );
 }
 
+pub const EXPLICIT_SELECTIONS_REPLACE_DEFAULTS_FOR_A_PROMPT: DescribedBehavior =
+    DescribedBehavior::new(
+        "explicit selections replace defaults for a prompt",
+        "An explicit selection suppresses default choices on the same prompt instead of merging with them.",
+        explicit_selections_replace_defaults_for_a_prompt,
+    );
+
+#[test]
 fn explicit_selections_replace_defaults_for_a_prompt() {
     let cheese_id = component_id("01CHEESE");
     let swiss_id = component_id("01SWISS");
@@ -353,6 +259,14 @@ fn explicit_selections_replace_defaults_for_a_prompt() {
     assert_eq!(choices[0].source(), SelectionSource::Explicit);
 }
 
+pub const PROMPT_MIN_AND_MAX_RULES_VALIDATE_SELECTION_COUNTS: DescribedBehavior =
+    DescribedBehavior::new(
+        "prompt min and max rules validate selection counts",
+        "Prompt Min and Max rules validate the summed selected counts across choices.",
+        prompt_min_and_max_rules_validate_selection_counts,
+    );
+
+#[test]
 fn prompt_min_and_max_rules_validate_selection_counts() {
     let cheddar_id = component_id("01CHEDDAR");
     let swiss_id = component_id("01SWISS");
@@ -404,6 +318,14 @@ fn prompt_min_and_max_rules_validate_selection_counts() {
     );
 }
 
+pub const MAX_ZERO_PROMPT_ALLOWS_NO_SELECTION_AND_REJECTS_ANY_SELECTION: DescribedBehavior =
+    DescribedBehavior::new(
+        "max zero prompt allows no selection and rejects any selection",
+        "A prompt with Max(0) is valid when empty and invalid when any choice is selected.",
+        max_zero_prompt_allows_no_selection_and_rejects_any_selection,
+    );
+
+#[test]
 fn max_zero_prompt_allows_no_selection_and_rejects_any_selection() {
     let prompt_id = component_id("01LOCKED");
     let choice_id = component_id("01CHOICE");
@@ -431,6 +353,14 @@ fn max_zero_prompt_allows_no_selection_and_rejects_any_selection() {
     );
 }
 
+pub const OPTIONAL_PROMPT_WITHOUT_SELECTION_HYDRATES_EMPTY_CONFIGURATION: DescribedBehavior =
+    DescribedBehavior::new(
+        "optional prompt without selection hydrates empty configuration",
+        "An optional prompt with no selected choices still appears in hydrated configuration with an empty choice list.",
+        optional_prompt_without_selection_hydrates_empty_configuration,
+    );
+
+#[test]
 fn optional_prompt_without_selection_hydrates_empty_configuration() {
     let prompt_id = component_id("01SAUCE");
     let modifiers = Modifiers::new(vec![
@@ -451,6 +381,14 @@ fn optional_prompt_without_selection_hydrates_empty_configuration() {
     assert!(configuration.dehydrate().is_empty());
 }
 
+pub const SCHEDULED_CHOICE_REQUIRES_EVALUATION_TIME_WHEN_SELECTED: DescribedBehavior =
+    DescribedBehavior::new(
+        "scheduled choice requires evaluation time when selected",
+        "A selected choice with a schedule cannot be hydrated unless the caller supplies explicit EvaluationTime.",
+        scheduled_choice_requires_evaluation_time_when_selected,
+    );
+
+#[test]
 fn scheduled_choice_requires_evaluation_time_when_selected() {
     let modifiers = scheduled_choice_modifiers(false);
     let brunch_id = component_id("01BRUNCH");
@@ -467,6 +405,14 @@ fn scheduled_choice_requires_evaluation_time_when_selected() {
     );
 }
 
+pub const SCHEDULED_CHOICE_HYDRATES_ONLY_INSIDE_ITS_SCHEDULE: DescribedBehavior =
+    DescribedBehavior::new(
+        "scheduled choice hydrates only inside its schedule",
+        "A scheduled choice accepts selections inside its own schedule and rejects selections outside it.",
+        scheduled_choice_hydrates_only_inside_its_schedule,
+    );
+
+#[test]
 fn scheduled_choice_hydrates_only_inside_its_schedule() {
     let modifiers = scheduled_choice_modifiers(false);
     let brunch_id = component_id("01BRUNCH");
@@ -486,6 +432,14 @@ fn scheduled_choice_hydrates_only_inside_its_schedule() {
     );
 }
 
+pub const SCHEDULED_CHOICE_IS_NOT_VISIBLE_OUTSIDE_ITS_SCHEDULE: DescribedBehavior =
+    DescribedBehavior::new(
+        "scheduled choice is not visible outside its schedule",
+        "A scheduled choice is filtered from visible modifier traversal when EvaluationTime falls outside its schedule.",
+        scheduled_choice_is_not_visible_outside_its_schedule,
+    );
+
+#[test]
 fn scheduled_choice_is_not_visible_outside_its_schedule() {
     let modifiers = scheduled_choice_modifiers(false);
     let prompt = &modifiers.prompts()[0];
@@ -505,6 +459,14 @@ fn scheduled_choice_is_not_visible_outside_its_schedule() {
     assert_eq!(visible_nodes, vec!["modifiers", "prompt:Specials"]);
 }
 
+pub const SCHEDULED_DEFAULT_CHOICE_USES_SUPPLIED_EVALUATION_TIME: DescribedBehavior =
+    DescribedBehavior::new(
+        "scheduled default choice uses supplied evaluation time",
+        "A scheduled default choice requires EvaluationTime and only defaults when its schedule includes that time.",
+        scheduled_default_choice_uses_supplied_evaluation_time,
+    );
+
+#[test]
 fn scheduled_default_choice_uses_supplied_evaluation_time() {
     let modifiers = scheduled_choice_modifiers(true);
 
@@ -538,6 +500,14 @@ fn scheduled_default_choice_uses_supplied_evaluation_time() {
     );
 }
 
+pub const CHOICE_RULES_APPLY_TO_SELECTED_CHOICE_QUANTITY: DescribedBehavior =
+    DescribedBehavior::new(
+        "choice rules apply to selected choice quantity",
+        "Choice-level Min and Max rules validate the selected count on that choice.",
+        choice_rules_apply_to_selected_choice_quantity,
+    );
+
+#[test]
 fn choice_rules_apply_to_selected_choice_quantity() {
     let modifiers = pizza_modifiers();
     let toppings_id = component_id("01TOPPING");
@@ -577,6 +547,14 @@ fn choice_rules_apply_to_selected_choice_quantity() {
     );
 }
 
+pub const CHOICE_DEFAULT_RULES_ARE_UNIQUE_NONZERO_AND_WITHIN_CHOICE_BOUNDS: DescribedBehavior =
+    DescribedBehavior::new(
+        "choice default rules are unique nonzero and within choice bounds",
+        "A choice default must be unique, greater than zero, and valid against the choice's own Min and Max rules.",
+        choice_default_rules_are_unique_nonzero_and_within_choice_bounds,
+    );
+
+#[test]
 fn choice_default_rules_are_unique_nonzero_and_within_choice_bounds() {
     let bacon_id = component_id("01BACON");
 
@@ -626,6 +604,14 @@ fn choice_default_rules_are_unique_nonzero_and_within_choice_bounds() {
     );
 }
 
+pub const DUPLICATE_CHOICE_SELECTIONS_ARE_REJECTED_EVEN_WITH_DIFFERENT_NESTED_SELECTIONS:
+    DescribedBehavior = DescribedBehavior::new(
+    "duplicate choice selections are rejected even with different nested selections",
+    "A prompt cannot select the same choice ID twice; distinct configuration must be modeled below the selected choice.",
+    duplicate_choice_selections_are_rejected_even_with_different_nested_selections,
+);
+
+#[test]
 fn duplicate_choice_selections_are_rejected_even_with_different_nested_selections() {
     let modifiers = pizza_modifiers();
     let toppings_id = component_id("01TOPPING");
@@ -655,6 +641,14 @@ fn duplicate_choice_selections_are_rejected_even_with_different_nested_selection
     );
 }
 
+pub const PROMPT_REJECTS_ZERO_DUPLICATE_AND_UNKNOWN_CHOICE_SELECTIONS: DescribedBehavior =
+    DescribedBehavior::new(
+        "prompt rejects zero duplicate and unknown choice selections",
+        "Prompt validation rejects zero counts, repeated choice IDs, and choice IDs that do not exist under the prompt.",
+        prompt_rejects_zero_duplicate_and_unknown_choice_selections,
+    );
+
+#[test]
 fn prompt_rejects_zero_duplicate_and_unknown_choice_selections() {
     let ranch_id = component_id("01RANCH");
     let prompt = Prompt::new(
@@ -684,6 +678,13 @@ fn prompt_rejects_zero_duplicate_and_unknown_choice_selections() {
     );
 }
 
+pub const PROMPT_REJECTS_SELECTION_COUNT_OVERFLOW: DescribedBehavior = DescribedBehavior::new(
+    "prompt rejects selection count overflow",
+    "Prompt validation uses checked arithmetic while summing selected counts.",
+    prompt_rejects_selection_count_overflow,
+);
+
+#[test]
 fn prompt_rejects_selection_count_overflow() {
     let first_id = component_id("01FIRST");
     let second_id = component_id("01SECOND");
@@ -709,6 +710,13 @@ fn prompt_rejects_selection_count_overflow() {
     );
 }
 
+pub const DUPLICATE_MIN_OR_MAX_RULES_ARE_REJECTED: DescribedBehavior = DescribedBehavior::new(
+    "duplicate min or max rules are rejected",
+    "Each rule kind can appear at most once in a prompt or choice rule set.",
+    duplicate_min_or_max_rules_are_rejected,
+);
+
+#[test]
 fn duplicate_min_or_max_rules_are_rejected() {
     assert_eq!(
         Prompt::new(
@@ -733,6 +741,14 @@ fn duplicate_min_or_max_rules_are_rejected() {
     );
 }
 
+pub const DEFINITIONS_REJECT_EMPTY_TITLES_INVALID_PROMPT_RULES_AND_EMPTY_REQUIRED_PROMPTS:
+    DescribedBehavior = DescribedBehavior::new(
+    "definitions reject empty titles invalid prompt rules and empty required prompts",
+    "Definition construction validates prompt and choice titles, rejects prompt defaults, and rejects required prompts with no choices.",
+    definitions_reject_empty_titles_invalid_prompt_rules_and_empty_required_prompts,
+);
+
+#[test]
 fn definitions_reject_empty_titles_invalid_prompt_rules_and_empty_required_prompts() {
     assert_eq!(
         Prompt::new(
@@ -776,6 +792,14 @@ fn definitions_reject_empty_titles_invalid_prompt_rules_and_empty_required_promp
     );
 }
 
+pub const DEFINITIONS_REJECT_INVALID_MIN_MAX_CONSTRAINTS_AND_DUPLICATE_CHOICE_DEFINITIONS:
+    DescribedBehavior = DescribedBehavior::new(
+    "definitions reject invalid min max constraints and duplicate choice definitions",
+    "Definition construction rejects Min greater than Max and duplicate choice IDs inside a prompt definition.",
+    definitions_reject_invalid_min_max_constraints_and_duplicate_choice_definitions,
+);
+
+#[test]
 fn definitions_reject_invalid_min_max_constraints_and_duplicate_choice_definitions() {
     assert_eq!(
         Prompt::new(
@@ -825,6 +849,14 @@ fn definitions_reject_invalid_min_max_constraints_and_duplicate_choice_definitio
     );
 }
 
+pub const CONFIGURATION_DEHYDRATES_NESTED_CHOICES_AND_ROUND_TRIPS: DescribedBehavior =
+    DescribedBehavior::new(
+        "configuration dehydrates nested choices and round trips",
+        "Explicit nested choices survive hydrate, dehydrate, and rehydrate without changing configuration.",
+        configuration_dehydrates_nested_choices_and_round_trips,
+    );
+
+#[test]
 fn configuration_dehydrates_nested_choices_and_round_trips() {
     let modifiers = pizza_modifiers_with_mushrooms();
     let toppings_id = component_id("01TOPPING");
@@ -854,6 +886,14 @@ fn configuration_dehydrates_nested_choices_and_round_trips() {
     assert_eq!(modifiers.hydrate(&dehydrated).unwrap(), configuration);
 }
 
+pub const THREE_LEVEL_NESTED_SELECTION_DEHYDRATES_AND_ROUND_TRIPS: DescribedBehavior =
+    DescribedBehavior::new(
+        "three level nested selection dehydrates and round trips",
+        "Deeply nested explicit selections remain stable across hydrate and dehydrate.",
+        three_level_nested_selection_dehydrates_and_round_trips,
+    );
+
+#[test]
 fn three_level_nested_selection_dehydrates_and_round_trips() {
     let modifiers = deeply_nested_modifiers();
     let selections = Selections::new().with_prompt(
@@ -882,6 +922,14 @@ fn three_level_nested_selection_dehydrates_and_round_trips() {
     assert_eq!(modifiers.hydrate(&dehydrated).unwrap(), configuration);
 }
 
+pub const NESTED_REQUIRED_PROMPTS_MUST_BE_SATISFIED_WHEN_PARENT_CHOICE_IS_SELECTED:
+    DescribedBehavior = DescribedBehavior::new(
+    "nested required prompts must be satisfied when parent choice is selected",
+    "Selecting a choice with required nested modifiers validates the nested required prompt immediately.",
+    nested_required_prompts_must_be_satisfied_when_parent_choice_is_selected,
+);
+
+#[test]
 fn nested_required_prompts_must_be_satisfied_when_parent_choice_is_selected() {
     let modifiers = pizza_modifiers();
     let selections = Selections::new().with_prompt(
@@ -898,7 +946,15 @@ fn nested_required_prompts_must_be_satisfied_when_parent_choice_is_selected() {
     );
 }
 
-fn nested_defaults_dehydrate_into_the_effective_selection_snapshot() {
+pub const NESTED_DEFAULTS_DEHYDRATE_INTO_EFFECTIVE_SELECTIONS: DescribedBehavior =
+    DescribedBehavior::new(
+        "nested defaults dehydrate into effective selections",
+        "Nested defaults under an explicit parent choice are included in dehydrated effective selections with their default source preserved.",
+        nested_defaults_dehydrate_into_effective_selections,
+    );
+
+#[test]
+fn nested_defaults_dehydrate_into_effective_selections() {
     let parent_id = component_id("01PARENT");
     let child_id = component_id("01CHILD");
     let default_child_id = component_id("01DEFAULT");
@@ -979,6 +1035,14 @@ fn nested_defaults_dehydrate_into_the_effective_selection_snapshot() {
     );
 }
 
+pub const SAME_MODIFIERS_CAN_HOLD_REPEATED_PROMPT_IDS_AS_ORDERED_INSTANCES: DescribedBehavior =
+    DescribedBehavior::new(
+        "same modifiers can hold repeated prompt IDs as ordered instances",
+        "Repeated prompt IDs in one modifier container hydrate by occurrence and dehydrate back as ordered prompt instances.",
+        same_modifiers_can_hold_repeated_prompt_ids_as_ordered_instances,
+    );
+
+#[test]
 fn same_modifiers_can_hold_repeated_prompt_ids_as_ordered_instances() {
     let sauce_id = component_id("01SAUCE");
     let hot_id = component_id("01HOT");
@@ -1022,6 +1086,14 @@ fn same_modifiers_can_hold_repeated_prompt_ids_as_ordered_instances() {
     assert_eq!(configuration.dehydrate(), selections);
 }
 
+pub const SAME_PROMPT_AND_CHOICE_IDS_CAN_BE_REUSED_IN_DIFFERENT_BRANCHES: DescribedBehavior =
+    DescribedBehavior::new(
+        "same prompt and choice IDs can be reused in different branches",
+        "Prompt and choice IDs can recur in separate branches because nested structure scopes selection lookup.",
+        same_prompt_and_choice_ids_can_be_reused_in_different_branches,
+    );
+
+#[test]
 fn same_prompt_and_choice_ids_can_be_reused_in_different_branches() {
     let modifiers = split_pizza_modifiers();
     let meats_id = component_id("01MEATS");
@@ -1069,6 +1141,14 @@ fn same_prompt_and_choice_ids_can_be_reused_in_different_branches() {
     );
 }
 
+pub const STRICT_HYDRATE_REJECTS_UNKNOWN_PROMPT_SELECTIONS_AND_EXTRA_PROMPT_OCCURRENCES:
+    DescribedBehavior = DescribedBehavior::new(
+    "strict hydrate rejects unknown prompt selections and extra prompt occurrences",
+    "Strict hydration rejects prompt selections that are not present at the current modifier level, including too many repeated occurrences.",
+    strict_hydrate_rejects_unknown_prompt_selections_and_extra_prompt_occurrences,
+);
+
+#[test]
 fn strict_hydrate_rejects_unknown_prompt_selections_and_extra_prompt_occurrences() {
     let sauce_id = component_id("01SAUCE");
     let ranch_id = component_id("01RANCH");
@@ -1110,6 +1190,14 @@ fn strict_hydrate_rejects_unknown_prompt_selections_and_extra_prompt_occurrences
     );
 }
 
+pub const STRICT_HYDRATE_REJECTS_NESTED_SELECTIONS_FOR_TERMINAL_CHOICES: DescribedBehavior =
+    DescribedBehavior::new(
+        "strict hydrate rejects nested selections for terminal choices",
+        "Choices without nested modifiers reject unexpected nested selection payloads.",
+        strict_hydrate_rejects_nested_selections_for_terminal_choices,
+    );
+
+#[test]
 fn strict_hydrate_rejects_nested_selections_for_terminal_choices() {
     let modifiers = Modifiers::new(vec![
         Prompt::new(
@@ -1142,6 +1230,14 @@ fn strict_hydrate_rejects_nested_selections_for_terminal_choices() {
     );
 }
 
+pub const TITLED_MODIFIERS_EXPOSE_TITLE_WITHOUT_AFFECTING_HYDRATION: DescribedBehavior =
+    DescribedBehavior::new(
+        "titled modifiers expose title without affecting hydration",
+        "A modifier title is descriptive metadata and does not affect selection hydration.",
+        titled_modifiers_expose_title_without_affecting_hydration,
+    );
+
+#[test]
 fn titled_modifiers_expose_title_without_affecting_hydration() {
     let prompt_id = component_id("01SAUCE");
     let modifiers = Modifiers::titled(
@@ -1166,6 +1262,13 @@ fn titled_modifiers_expose_title_without_affecting_hydration() {
     assert_eq!(modifiers.prompts()[0].prompt_id(), &prompt_id);
 }
 
+pub const MODIFIERS_CAN_WALK_NESTED_DEFINITION_TREE: DescribedBehavior = DescribedBehavior::new(
+    "modifiers can walk nested definition tree",
+    "The definition walker visits modifiers, prompts, and choices in nested order.",
+    modifiers_can_walk_nested_definition_tree,
+);
+
+#[test]
 fn modifiers_can_walk_nested_definition_tree() {
     let modifiers = pizza_modifiers();
     let mut labels = Vec::new();
@@ -1191,6 +1294,14 @@ fn modifiers_can_walk_nested_definition_tree() {
     );
 }
 
+pub const PROMPT_VALIDATION_RETURNS_EFFECTS_AND_NESTED_MODIFIER_DEFINITIONS: DescribedBehavior =
+    DescribedBehavior::new(
+        "prompt validation returns effects and nested modifier definitions",
+        "Validated choice selections carry the choice effects and nested modifier definition needed by consumers.",
+        prompt_validation_returns_effects_and_nested_modifier_definitions,
+    );
+
+#[test]
 fn prompt_validation_returns_effects_and_nested_modifier_definitions() {
     let bacon_id = component_id("01BACON");
     let placement_prompt = placement_prompt(component_id("01PLACE"));
@@ -1236,6 +1347,14 @@ fn prompt_validation_returns_effects_and_nested_modifier_definitions() {
     );
 }
 
+pub const FLAT_MODIFIER_PRICE_IS_MULTIPLIED_BY_SELECTED_FACTOR: DescribedBehavior =
+    DescribedBehavior::new(
+        "flat modifier price is multiplied by selected factor",
+        "A priced choice emits one contribution and selected child factor choices multiply that contribution upward.",
+        flat_modifier_price_is_multiplied_by_selected_factor,
+    );
+
+#[test]
 fn flat_modifier_price_is_multiplied_by_selected_factor() {
     let modifiers = pizza_modifiers();
     let configuration = modifiers
@@ -1268,6 +1387,14 @@ fn flat_modifier_price_is_multiplied_by_selected_factor() {
     );
 }
 
+pub const INVARIANT_RATE_PRICE_ADDS_TO_FLAT_AMOUNT_WITHOUT_FLOATS: DescribedBehavior =
+    DescribedBehavior::new(
+        "invariant rate price adds to flat amount without floats",
+        "A choice can add a flat amount plus an integer rate of the selected variant invariant price.",
+        invariant_rate_price_adds_to_flat_amount_without_floats,
+    );
+
+#[test]
 fn invariant_rate_price_adds_to_flat_amount_without_floats() {
     let modifiers = Modifiers::new(vec![
         Prompt::new(
@@ -1307,6 +1434,14 @@ fn invariant_rate_price_adds_to_flat_amount_without_floats() {
     assert_eq!(priced.total().amount_minor(), 280);
 }
 
+pub const NESTED_FACTORS_MULTIPLY_UP_TO_THE_NEAREST_PRICED_ANCESTOR: DescribedBehavior =
+    DescribedBehavior::new(
+        "nested factors multiply up to the nearest priced ancestor",
+        "Factor choices can stack through nested modifiers and are consumed by the nearest priced ancestor branch.",
+        nested_factors_multiply_up_to_the_nearest_priced_ancestor,
+    );
+
+#[test]
 fn nested_factors_multiply_up_to_the_nearest_priced_ancestor() {
     let configuration = deeply_nested_priced_modifiers()
         .hydrate(&Selections::new().with_prompt(
@@ -1337,6 +1472,14 @@ fn nested_factors_multiply_up_to_the_nearest_priced_ancestor() {
     assert_eq!(priced.contributions()[0].factors().len(), 2);
 }
 
+pub const DEFAULTS_ARE_FREE_UNLESS_PRICING_POLICY_SAYS_OTHERWISE: DescribedBehavior =
+    DescribedBehavior::new(
+        "defaults are free unless pricing policy says otherwise",
+        "Default selected priced choices contribute zero by default, and the pricing policy can opt into charging them.",
+        defaults_are_free_unless_pricing_policy_says_otherwise,
+    );
+
+#[test]
 fn defaults_are_free_unless_pricing_policy_says_otherwise() {
     let modifiers = Modifiers::new(vec![
         Prompt::new(
@@ -1375,6 +1518,13 @@ fn defaults_are_free_unless_pricing_policy_says_otherwise() {
     assert_eq!(default_charged.total().amount_minor(), 200);
 }
 
+pub const UNCONSUMED_ROOT_FACTOR_IS_INVALID: DescribedBehavior = DescribedBehavior::new(
+    "unconsumed root factor is invalid",
+    "A factor choice with no priced ancestor is rejected instead of silently disappearing.",
+    unconsumed_root_factor_is_invalid,
+);
+
+#[test]
 fn unconsumed_root_factor_is_invalid() {
     let modifiers = Modifiers::new(vec![
         Prompt::new(

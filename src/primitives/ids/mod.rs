@@ -130,16 +130,3 @@ macro_rules! define_prefixed_id {
 }
 
 pub(crate) use define_prefixed_id;
-
-#[cfg(test)]
-mod tests {
-    use super::{EntryId, OrderId};
-
-    #[test]
-    fn typed_ids_validate_prefixes() {
-        let order_id = OrderId::parse("ORD-01HX7Y9M8N6ZQ4K3V2B1C0D9EA").unwrap();
-
-        assert_eq!(order_id.as_str(), "ORD-01HX7Y9M8N6ZQ4K3V2B1C0D9EA");
-        assert!(EntryId::parse(order_id.as_str()).is_err());
-    }
-}

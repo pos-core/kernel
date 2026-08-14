@@ -3,6 +3,7 @@ use std::fmt;
 use crate::primitives::calendar::{CalendarMoment, DaysOfWeek, LocalTimeRange, LogicalDateRange};
 use crate::primitives::time::{EvaluationTime, UtcTime};
 
+#[doc = include_str!("schedule.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Schedule {
     limit: ScheduleLimit,
@@ -222,6 +223,7 @@ impl ScheduleWindow {
     }
 }
 
+#[doc = include_str!("schedule-context.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ScheduleContext {
     utc_time: UtcTime,
@@ -273,124 +275,3 @@ impl fmt::Display for ScheduleError {
 }
 
 impl std::error::Error for ScheduleError {}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        Schedule, ScheduleContext, ScheduleError, ScheduleLimit, ScheduleWindow, UtcTimeRange,
-    };
-    use crate::primitives::calendar::{
-        CalendarMoment, DayOfWeek, DaysOfWeek, LocalTimeOfDay, LocalTimeRange, LogicalDate,
-        LogicalDateRange,
-    };
-    use crate::primitives::time::{TimeZone, UtcTime};
-
-    #[test]
-    fn empty_schedule_is_always_scheduled() {
-        let schedule = Schedule::always();
-
-        assert!(schedule.includes(&context(100, 2026, 5, 22, 12, 0, 0)));
-    }
-
-    #[test]
-    fn schedule_limits_gate_the_whole_schedule() {
-        let until = Schedule::always().with_limit(ScheduleLimit::Until(utc(200)));
-        let after = Schedule::always().with_limit(ScheduleLimit::After(utc(200)));
-        let between =
-            Schedule::always().with_limit(ScheduleLimit::between(utc(100), utc(200)).unwrap());
-
-        assert!(until.includes(&context(199, 2026, 5, 22, 12, 0, 0)));
-        assert!(!until.includes(&context(200, 2026, 5, 22, 12, 0, 0)));
-        assert!(!after.includes(&context(199, 2026, 5, 22, 12, 0, 0)));
-        assert!(after.includes(&context(200, 2026, 5, 22, 12, 0, 0)));
-        assert!(between.includes(&context(100, 2026, 5, 22, 12, 0, 0)));
-        assert!(!between.includes(&context(200, 2026, 5, 22, 12, 0, 0)));
-        assert!(!Schedule::never().includes(&context(150, 2026, 5, 22, 12, 0, 0)));
-    }
-
-    #[test]
-    fn schedule_windows_require_any_matching_window_when_present() {
-        let breakfast = ScheduleWindow::new()
-            .with_days_of_week(DaysOfWeek::weekdays())
-            .with_time_range(
-                LocalTimeRange::from_seconds(6 * 3_600, 10 * 3_600 + 30 * 60).unwrap(),
-            );
-        let schedule = Schedule::with_windows(vec![breakfast]).unwrap();
-
-        assert!(schedule.includes(&context(0, 2026, 5, 22, 9, 30, 0)));
-        assert!(!schedule.includes(&context(0, 2026, 5, 22, 11, 0, 0)));
-        assert!(!schedule.includes(&context(0, 2026, 5, 23, 9, 30, 0)));
-    }
-
-    #[test]
-    fn schedule_exclusions_override_windows_and_always() {
-        let holiday = ScheduleWindow::new().with_date_range(
-            LogicalDateRange::new(
-                LogicalDate::new(2026, 12, 25).unwrap(),
-                LogicalDate::new(2026, 12, 25).unwrap(),
-            )
-            .unwrap(),
-        );
-        let schedule = Schedule::always().with_exclusion(holiday);
-
-        assert!(!schedule.includes(&context(0, 2026, 12, 25, 12, 0, 0)));
-        assert!(schedule.includes(&context(0, 2026, 12, 26, 12, 0, 0)));
-    }
-
-    #[test]
-    fn schedule_windows_can_combine_dates_days_and_times() {
-        let may_friday_lunch = ScheduleWindow::new()
-            .with_date_range(
-                LogicalDateRange::new(
-                    LogicalDate::new(2026, 5, 1).unwrap(),
-                    LogicalDate::new(2026, 5, 31).unwrap(),
-                )
-                .unwrap(),
-            )
-            .with_days_of_week(DaysOfWeek::new([DayOfWeek::Friday]).unwrap())
-            .with_time_range(LocalTimeRange::from_seconds(11 * 3_600, 14 * 3_600).unwrap());
-        let schedule = Schedule::with_windows(vec![may_friday_lunch]).unwrap();
-
-        assert!(schedule.includes(&context(0, 2026, 5, 22, 12, 0, 0)));
-        assert!(!schedule.includes(&context(0, 2026, 5, 22, 15, 0, 0)));
-        assert!(!schedule.includes(&context(0, 2026, 6, 5, 12, 0, 0)));
-    }
-
-    #[test]
-    fn schedule_rejects_empty_windowed_schedules_and_invalid_utc_ranges() {
-        assert_eq!(
-            Schedule::with_windows(Vec::new()),
-            Err(ScheduleError::EmptyWindows)
-        );
-        assert_eq!(
-            UtcTimeRange::new(utc(200), utc(200)),
-            Err(ScheduleError::InvalidUtcTimeRange {
-                starts_at: utc(200),
-                ends_at: utc(200)
-            })
-        );
-    }
-
-    fn context(
-        unix_millis: i64,
-        year: i32,
-        month: u8,
-        day: u8,
-        hour: u8,
-        minute: u8,
-        second: u8,
-    ) -> ScheduleContext {
-        ScheduleContext::new(
-            utc(unix_millis),
-            CalendarMoment::new(
-                LogicalDate::new(year, month, day).unwrap(),
-                LocalTimeOfDay::from_hms(hour, minute, second).unwrap(),
-                TimeZone::utc(),
-            ),
-        )
-    }
-
-    fn utc(unix_millis: i64) -> UtcTime {
-        UtcTime::from_unix_millis(unix_millis)
-    }
-}

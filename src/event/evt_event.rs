@@ -2,6 +2,7 @@ use crate::actor::ActorContext;
 use crate::primitives::ids::{CommandId, EventId};
 use crate::primitives::time::UtcTime;
 
+#[doc = include_str!("event-envelope.md")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct EventEnvelope<E> {
     event_id: EventId,

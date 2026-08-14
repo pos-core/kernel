@@ -153,10 +153,20 @@ Important standard vocabularies include:
 - Reserved words are avoided; prefer names like `kind`, `position`, and `sort_order`.
 - Domain modules should expose small, testable APIs before persistence or transport abstractions.
 
+## Domain Documentation
+
+- Important domain terms must be defined where their owning code lives.
+- A standalone definition uses a lowercase kebab-case Markdown file beside the Rust source that owns the concept.
+- The owning Rust type includes that file with `#[doc = include_str!("definition-name.md")]` so the Markdown file and Rustdoc share one source of truth.
+- Definitions state what a concept means, what facts it contains, and its boundary from adjacent concepts.
+- Behavior reports link to the definitions required to understand their test names and descriptions.
+- Test descriptions use the precise domain term, such as `configuration snapshot` or `order-item modifier snapshot`, instead of an ambiguous shorthand such as `snapshot`.
+
 ## Tests
 
 - Tests should read like documentation.
 - Every behavior test should have a concise description.
+- A reader should not need to inspect an assertion body to identify the domain concepts named by a behavior.
 - Module test reports are written to `test-coverage/`.
 - Markdown reports are preferred for now because they are readable in git.
 - Test coverage should focus first on invariants, deterministic configuration snapshots, pricing, events, and replay.

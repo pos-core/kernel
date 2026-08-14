@@ -2,14 +2,25 @@
 
 Described behavior tests for variants, shared item modifiers, variant applicability, and configured item pricing.
 
+## Definitions
+
+- [Catalog item](../src/catalog_item/catalog-item.md)
+- [Variant](../src/catalog_item/variant.md)
+- [Configured catalog item](../src/catalog_item/configured-catalog-item.md)
+
+## Result
+
 - Generated: 2026-05-22 12:29:37 UTC
-- Total cases: 8
-- Passed: 8
+- Total cases: 9
+- Passed: 9
 - Failed: 0
+
+## Behaviors
 
 | Test | Description | Status | Time |
 | --- | --- | --- | ---: |
-| catalog item rejects empty titles and missing variants | Catalog item construction requires a non-empty title, non-empty variant titles, and at least one resolved variant. | Passed | 0 ms |
+| catalog item rejects empty titles and missing variants | Catalog item construction requires a non-empty title, non-empty text for labeled variants, and at least one resolved variant. | Passed | 0 ms |
+| sole variant may be unlabeled but multiple variants require labels | A catalog item may use one unlabeled priced variant for an implicit single configuration; once multiple variants exist, every variant requires a label. | Passed | 0 ms |
 | catalog item rejects duplicate variant IDs and currency mismatches | A catalog item cannot define duplicate variants and all variant invariant prices must share one currency. | Passed | 0 ms |
 | catalog item configures known variant and prices shared modifiers | Configuring a known variant returns invariant price, hydrated shared modifiers, modifier price contributions, and total price. | Passed | 0 ms |
 | catalog item rejects unknown variant | Invalid variant combinations are modeled by absence; configuring a missing variant fails. | Passed | 0 ms |

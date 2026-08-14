@@ -12,10 +12,23 @@ pub struct ReportCase {
     pub run: fn(),
 }
 
+#[derive(Clone, Copy)]
+pub struct DefinitionLink {
+    pub term: &'static str,
+    pub path: &'static str,
+}
+
+impl DefinitionLink {
+    pub const fn new(term: &'static str, path: &'static str) -> Self {
+        Self { term, path }
+    }
+}
+
 pub struct ModuleReport {
     pub slug: &'static str,
     pub title: &'static str,
     pub description: &'static str,
+    pub definitions: Vec<DefinitionLink>,
     pub cases: Vec<ReportCase>,
 }
 
@@ -30,6 +43,7 @@ struct ModuleOutcome {
     slug: &'static str,
     title: &'static str,
     description: &'static str,
+    definitions: Vec<DefinitionLink>,
     cases: Vec<CaseOutcome>,
 }
 
@@ -93,6 +107,7 @@ fn run_module(module: ModuleReport) -> ModuleOutcome {
         slug: module.slug,
         title: module.title,
         description: module.description,
+        definitions: module.definitions,
         cases,
     }
 }
@@ -118,6 +133,12 @@ fn render_index(modules: &[ModuleOutcome], generated_at: &str) -> String {
     let mut md = String::new();
 
     writeln!(&mut md, "# Test Report").unwrap();
+    writeln!(&mut md).unwrap();
+    writeln!(
+        &mut md,
+        "Each module report links the domain definitions needed to read its behaviors."
+    )
+    .unwrap();
     writeln!(&mut md).unwrap();
     writeln!(&mut md, "- Generated: {generated_at}").unwrap();
     writeln!(&mut md, "- Total cases: {total}").unwrap();
@@ -158,10 +179,32 @@ fn render_module(module: &ModuleOutcome, generated_at: &str) -> String {
     writeln!(&mut md).unwrap();
     writeln!(&mut md, "{}", module.description).unwrap();
     writeln!(&mut md).unwrap();
+
+    if !module.definitions.is_empty() {
+        writeln!(&mut md, "## Definitions").unwrap();
+        writeln!(&mut md).unwrap();
+
+        for definition in &module.definitions {
+            writeln!(
+                &mut md,
+                "- [{}]({})",
+                escape_markdown(definition.term),
+                definition.path
+            )
+            .unwrap();
+        }
+
+        writeln!(&mut md).unwrap();
+    }
+
+    writeln!(&mut md, "## Result").unwrap();
+    writeln!(&mut md).unwrap();
     writeln!(&mut md, "- Generated: {generated_at}").unwrap();
     writeln!(&mut md, "- Total cases: {total}").unwrap();
     writeln!(&mut md, "- Passed: {}", total - failed).unwrap();
     writeln!(&mut md, "- Failed: {failed}").unwrap();
+    writeln!(&mut md).unwrap();
+    writeln!(&mut md, "## Behaviors").unwrap();
     writeln!(&mut md).unwrap();
     writeln!(&mut md, "| Test | Description | Status | Time |").unwrap();
     writeln!(&mut md, "| --- | --- | --- | ---: |").unwrap();

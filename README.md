@@ -41,13 +41,25 @@ Examples:
 
 The core should remain free of UI, storage, concrete payment processors, concrete surfaces, concrete order types, and concrete fulfillment behavior.
 
+## Domain Definitions
+
+Important domain terms have standalone Markdown definitions beside the Rust code that owns them. The owning type includes the same file as its Rust documentation:
+
+```rust
+#[doc = include_str!("configuration-snapshot.md")]
+pub struct ConfigurationSnapshot {
+    // ...
+}
+```
+
+This keeps the Markdown page, generated Rustdoc, and behavior-report definition links anchored to one source of truth. Definitions explain what a concept means, what it contains, and how it differs from adjacent concepts; behavior tests define the rules it must satisfy.
+
 ## Test Reports
 
-`cargo test` writes described Markdown reports to `test-coverage/`.
+`cargo test` runs each described behavior as an ordinary Rust test and writes the same behaviors to Markdown under `test-coverage/`. Each module report links the domain definitions needed to read its behavior descriptions. The canonical test layout is documented in [`tests/README.md`](tests/README.md).
 
 - `test-coverage/index.md`: all module reports
-- `test-coverage/modifier.md`: described modifier behavior tests
-- `test-coverage/catalog-item.md`: described catalog item and variant behavior tests
+- `tests/behavior_reports/`: colocated behavior descriptions and assertion functions
 
 ## License
 

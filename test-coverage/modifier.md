@@ -2,15 +2,27 @@
 
 Described behavior tests for prompts, choices, rules, hydration, dehydration, and pricing.
 
+## Definitions
+
+- [Modifier definitions](../src/modifier/modifiers.md)
+- [Selections](../src/modifier/selections.md)
+- [Configuration](../src/modifier/configuration.md)
+- [Configuration snapshot](../src/modifier/configuration-snapshot.md)
+- [Modifier pricing](../src/modifier/modifier-pricing.md)
+
+## Result
+
 - Generated: 2026-05-22 12:29:37 UTC
 - Total cases: 35
 - Passed: 35
 - Failed: 0
 
+## Behaviors
+
 | Test | Description | Status | Time |
 | --- | --- | --- | ---: |
-| defaults dehydrate into the effective selection snapshot | Default choices hydrate into configuration and dehydrate with default source so an order snapshot preserves what was selected at the time. | Passed | 0 ms |
-| snapshot preserves default selections labels and price facts | A modifier snapshot includes default selections, prompt and choice labels, price definitions, price contributions, and totals. | Passed | 0 ms |
+| defaults dehydrate into effective selections | Default choices hydrate into configuration and dehydrate into effective selections with their default source preserved. | Passed | 0 ms |
+| configuration snapshot preserves default selections labels and price facts | A configuration snapshot includes default selections, prompt and choice labels, price definitions, price contributions, and the modifier total. | Passed | 0 ms |
 | defaults must satisfy prompt min and max rules | Choice defaults are validated against the containing prompt selection count rules. | Passed | 0 ms |
 | explicit selections replace defaults for a prompt | An explicit selection suppresses default choices on the same prompt instead of merging with them. | Passed | 0 ms |
 | prompt min and max rules validate selection counts | Prompt Min and Max rules validate the summed selected counts across choices. | Passed | 0 ms |
@@ -31,7 +43,7 @@ Described behavior tests for prompts, choices, rules, hydration, dehydration, an
 | configuration dehydrates nested choices and round trips | Explicit nested choices survive hydrate, dehydrate, and rehydrate without changing configuration. | Passed | 0 ms |
 | three level nested selection dehydrates and round trips | Deeply nested explicit selections remain stable across hydrate and dehydrate. | Passed | 0 ms |
 | nested required prompts must be satisfied when parent choice is selected | Selecting a choice with required nested modifiers validates the nested required prompt immediately. | Passed | 0 ms |
-| nested defaults dehydrate into the effective selection snapshot | Nested defaults under an explicit parent choice are included in the dehydrated snapshot with default source. | Passed | 0 ms |
+| nested defaults dehydrate into effective selections | Nested defaults under an explicit parent choice are included in dehydrated effective selections with their default source preserved. | Passed | 0 ms |
 | same modifiers can hold repeated prompt IDs as ordered instances | Repeated prompt IDs in one modifier container hydrate by occurrence and dehydrate back as ordered prompt instances. | Passed | 0 ms |
 | same prompt and choice IDs can be reused in different branches | Prompt and choice IDs can recur in separate branches because nested structure scopes selection lookup. | Passed | 0 ms |
 | strict hydrate rejects unknown prompt selections and extra prompt occurrences | Strict hydration rejects prompt selections that are not present at the current modifier level, including too many repeated occurrences. | Passed | 0 ms |

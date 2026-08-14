@@ -1,58 +1,43 @@
 use pos_core_kernel::prelude::*;
 
 use crate::support::behavior::*;
-use crate::support::md_report::ModuleReport;
+use crate::support::md_report::{DefinitionLink, ModuleReport};
 
 pub fn report() -> ModuleReport {
     ModuleReport {
         slug: "catalog-item",
         title: "Catalog Item",
         description: "Described behavior tests for variants, shared item modifiers, variant applicability, and configured item pricing.",
+        definitions: vec![
+            DefinitionLink::new("Catalog item", "../src/catalog_item/catalog-item.md"),
+            DefinitionLink::new("Variant", "../src/catalog_item/variant.md"),
+            DefinitionLink::new(
+                "Configured catalog item",
+                "../src/catalog_item/configured-catalog-item.md",
+            ),
+        ],
         cases: vec![
-            case(
-                "catalog item rejects empty titles and missing variants",
-                "Catalog item construction requires a non-empty title, non-empty variant titles, and at least one resolved variant.",
-                catalog_item_rejects_empty_titles_and_missing_variants,
-            ),
-            case(
-                "catalog item rejects duplicate variant IDs and currency mismatches",
-                "A catalog item cannot define duplicate variants and all variant invariant prices must share one currency.",
-                catalog_item_rejects_duplicate_variant_ids,
-            ),
-            case(
-                "catalog item configures known variant and prices shared modifiers",
-                "Configuring a known variant returns invariant price, hydrated shared modifiers, modifier price contributions, and total price.",
-                catalog_item_configures_known_variant_and_returns_effects_and_modifier_configuration,
-            ),
-            case(
-                "catalog item rejects unknown variant",
-                "Invalid variant combinations are modeled by absence; configuring a missing variant fails.",
-                catalog_item_rejects_unknown_variant,
-            ),
-            case(
-                "selected variant controls modifier choice applicability",
-                "A selected variant can make a shared modifier choice inapplicable without duplicating the modifier tree.",
-                variant_modifiers_control_choice_selectability,
-            ),
-            case(
-                "selected variant controls modifier prompt applicability",
-                "A selected variant can make a shared modifier prompt inapplicable.",
-                variant_modifiers_can_have_different_prompt_rules,
-            ),
-            case(
-                "item with no modifier prompts accepts empty selection and rejects unknown prompt selection",
-                "An item with no shared modifiers hydrates empty selections and rejects unexpected prompt selections.",
-                variant_with_no_modifier_prompts_accepts_empty_selection_and_rejects_unknown_prompt_selection,
-            ),
-            case(
-                "resolved variant combinations are modeled by variant existence",
-                "The core sees only concrete valid variants; unsupported combinations are unknown variant IDs.",
-                resolved_variant_combinations_are_modeled_by_variant_existence,
-            ),
+            CATALOG_ITEM_REJECTS_EMPTY_TITLES_AND_MISSING_VARIANTS.report_case(),
+            SOLE_VARIANT_MAY_BE_UNLABELED_BUT_MULTIPLE_VARIANTS_REQUIRE_LABELS.report_case(),
+            CATALOG_ITEM_REJECTS_DUPLICATE_VARIANT_IDS.report_case(),
+            CATALOG_ITEM_CONFIGURES_KNOWN_VARIANT_AND_RETURNS_EFFECTS_AND_MODIFIER_CONFIGURATION.report_case(),
+            CATALOG_ITEM_REJECTS_UNKNOWN_VARIANT.report_case(),
+            VARIANT_MODIFIERS_CONTROL_CHOICE_SELECTABILITY.report_case(),
+            VARIANT_MODIFIERS_CAN_HAVE_DIFFERENT_PROMPT_RULES.report_case(),
+            VARIANT_WITH_NO_MODIFIER_PROMPTS_ACCEPTS_EMPTY_SELECTION_AND_REJECTS_UNKNOWN_PROMPT_SELECTION.report_case(),
+            RESOLVED_VARIANT_COMBINATIONS_ARE_MODELED_BY_VARIANT_EXISTENCE.report_case(),
         ],
     }
 }
 
+pub const CATALOG_ITEM_REJECTS_EMPTY_TITLES_AND_MISSING_VARIANTS: DescribedBehavior =
+    DescribedBehavior::new(
+        "catalog item rejects empty titles and missing variants",
+        "Catalog item construction requires a non-empty title, non-empty text for labeled variants, and at least one resolved variant.",
+        catalog_item_rejects_empty_titles_and_missing_variants,
+    );
+
+#[test]
 fn catalog_item_rejects_empty_titles_and_missing_variants() {
     assert_eq!(
         CatalogItem::new(
@@ -80,6 +65,59 @@ fn catalog_item_rejects_empty_titles_and_missing_variants() {
     );
 }
 
+pub const SOLE_VARIANT_MAY_BE_UNLABELED_BUT_MULTIPLE_VARIANTS_REQUIRE_LABELS: DescribedBehavior =
+    DescribedBehavior::new(
+        "sole variant may be unlabeled but multiple variants require labels",
+        "A catalog item may use one unlabeled priced variant for an implicit single configuration; once multiple variants exist, every variant requires a label.",
+        sole_variant_may_be_unlabeled_but_multiple_variants_require_labels,
+    );
+
+#[test]
+fn sole_variant_may_be_unlabeled_but_multiple_variants_require_labels() {
+    let unlabeled_id = variant_id("01STANDARD");
+    let catalog_item = CatalogItem::new(
+        catalog_item_id("01CHIPS"),
+        "Bag of chips",
+        vec![Variant::without_label(unlabeled_id.clone(), usd(199), Vec::new()).unwrap()],
+        Modifiers::new(Vec::new()),
+    )
+    .unwrap();
+
+    let variant = catalog_item.variant(&unlabeled_id).unwrap();
+    assert_eq!(variant.label(), None);
+    assert_eq!(variant.title(), None);
+
+    let configured = catalog_item
+        .configure_variant(&unlabeled_id, &Selections::new())
+        .unwrap();
+    assert_eq!(configured.variant_label(), None);
+    assert_eq!(configured.variant_label_definition(), None);
+    assert_eq!(configured.invariant_price().amount_minor(), 199);
+    assert_eq!(configured.total_price().amount_minor(), 199);
+
+    assert_eq!(
+        CatalogItem::new(
+            catalog_item_id("01CHIPS"),
+            "Bag of chips",
+            vec![
+                Variant::without_label(unlabeled_id.clone(), usd(199), Vec::new()).unwrap(),
+                Variant::new(variant_id("01LARGE"), "Large", usd(349), Vec::new()).unwrap(),
+            ],
+            Modifiers::new(Vec::new()),
+        ),
+        Err(CatalogItemError::UnlabeledVariantRequiresSingleVariant(
+            unlabeled_id
+        ))
+    );
+}
+
+pub const CATALOG_ITEM_REJECTS_DUPLICATE_VARIANT_IDS: DescribedBehavior = DescribedBehavior::new(
+    "catalog item rejects duplicate variant IDs and currency mismatches",
+    "A catalog item cannot define duplicate variants and all variant invariant prices must share one currency.",
+    catalog_item_rejects_duplicate_variant_ids,
+);
+
+#[test]
 fn catalog_item_rejects_duplicate_variant_ids() {
     let duplicate_id = variant_id("01LARGE-THIN");
 
@@ -125,6 +163,14 @@ fn catalog_item_rejects_duplicate_variant_ids() {
     );
 }
 
+pub const CATALOG_ITEM_CONFIGURES_KNOWN_VARIANT_AND_RETURNS_EFFECTS_AND_MODIFIER_CONFIGURATION:
+    DescribedBehavior = DescribedBehavior::new(
+    "catalog item configures known variant and prices shared modifiers",
+    "Configuring a known variant returns invariant price, hydrated shared modifiers, modifier price contributions, and total price.",
+    catalog_item_configures_known_variant_and_returns_effects_and_modifier_configuration,
+);
+
+#[test]
 fn catalog_item_configures_known_variant_and_returns_effects_and_modifier_configuration() {
     let catalog_item = catalog_item_pizza();
     let large_id = variant_id("01LARGE-THIN");
@@ -163,6 +209,13 @@ fn catalog_item_configures_known_variant_and_returns_effects_and_modifier_config
     );
 }
 
+pub const CATALOG_ITEM_REJECTS_UNKNOWN_VARIANT: DescribedBehavior = DescribedBehavior::new(
+    "catalog item rejects unknown variant",
+    "Invalid variant combinations are modeled by absence; configuring a missing variant fails.",
+    catalog_item_rejects_unknown_variant,
+);
+
+#[test]
 fn catalog_item_rejects_unknown_variant() {
     let catalog_item = catalog_item_pizza();
     let unknown_id = variant_id("01SMALL-ICED");
@@ -173,6 +226,14 @@ fn catalog_item_rejects_unknown_variant() {
     );
 }
 
+pub const VARIANT_MODIFIERS_CONTROL_CHOICE_SELECTABILITY: DescribedBehavior =
+    DescribedBehavior::new(
+        "selected variant controls modifier choice applicability",
+        "A selected variant can make a shared modifier choice inapplicable without duplicating the modifier tree.",
+        variant_modifiers_control_choice_selectability,
+    );
+
+#[test]
 fn variant_modifiers_control_choice_selectability() {
     let catalog_item = catalog_item_pizza();
     let toppings_id = component_id("01TOPPING");
@@ -201,6 +262,14 @@ fn variant_modifiers_control_choice_selectability() {
     );
 }
 
+pub const VARIANT_MODIFIERS_CAN_HAVE_DIFFERENT_PROMPT_RULES: DescribedBehavior =
+    DescribedBehavior::new(
+        "selected variant controls modifier prompt applicability",
+        "A selected variant can make a shared modifier prompt inapplicable.",
+        variant_modifiers_can_have_different_prompt_rules,
+    );
+
+#[test]
 fn variant_modifiers_can_have_different_prompt_rules() {
     let catalog_item = catalog_item_pizza();
     let toppings_id = component_id("01TOPPING");
@@ -217,6 +286,13 @@ fn variant_modifiers_can_have_different_prompt_rules() {
     );
 }
 
+pub const VARIANT_WITH_NO_MODIFIER_PROMPTS_ACCEPTS_EMPTY_SELECTION_AND_REJECTS_UNKNOWN_PROMPT_SELECTION: DescribedBehavior = DescribedBehavior::new(
+    "item with no modifier prompts accepts empty selection and rejects unknown prompt selection",
+    "An item with no shared modifiers hydrates empty selections and rejects unexpected prompt selections.",
+    variant_with_no_modifier_prompts_accepts_empty_selection_and_rejects_unknown_prompt_selection,
+);
+
+#[test]
 fn variant_with_no_modifier_prompts_accepts_empty_selection_and_rejects_unknown_prompt_selection() {
     let catalog_item = catalog_item_coffee();
     let hot_id = variant_id("01SMALL-HOT");
@@ -240,6 +316,14 @@ fn variant_with_no_modifier_prompts_accepts_empty_selection_and_rejects_unknown_
     );
 }
 
+pub const RESOLVED_VARIANT_COMBINATIONS_ARE_MODELED_BY_VARIANT_EXISTENCE: DescribedBehavior =
+    DescribedBehavior::new(
+        "resolved variant combinations are modeled by variant existence",
+        "The core sees only concrete valid variants; unsupported combinations are unknown variant IDs.",
+        resolved_variant_combinations_are_modeled_by_variant_existence,
+    );
+
+#[test]
 fn resolved_variant_combinations_are_modeled_by_variant_existence() {
     let catalog_item = catalog_item_coffee();
 

@@ -2,10 +2,20 @@
 
 Described behavior tests for generic fulfillability, provider resolution, bucketed supply, and reversible supply claims.
 
+## Definitions
+
+- [Supply view](../src/supply/supply-view.md)
+- [Supply bucket](../src/supply/supply-bucket.md)
+- [Supply ledger](../src/supply/supply-ledger.md)
+
+## Result
+
 - Generated: 2026-05-22 12:29:37 UTC
 - Total cases: 7
 - Passed: 7
 - Failed: 0
+
+## Behaviors
 
 | Test | Description | Status | Time |
 | --- | --- | --- | ---: |

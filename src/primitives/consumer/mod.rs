@@ -50,6 +50,7 @@ impl fmt::Display for ConsumerAttributeError {
 
 impl std::error::Error for ConsumerAttributeError {}
 
+#[doc = include_str!("consumer-profile.md")]
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct ConsumerProfile {
     attributes: BTreeSet<ConsumerAttributeId>,
@@ -123,48 +124,3 @@ impl fmt::Display for ConsumerProfileError {
 }
 
 impl std::error::Error for ConsumerProfileError {}
-
-#[cfg(test)]
-mod tests {
-    use super::{ConsumerProfile, ConsumerProfileError};
-    use crate::primitives::ids::ConsumerAttributeId;
-
-    #[test]
-    fn consumer_profile_matches_required_attributes_as_a_set() {
-        let web = attribute_id("WEB");
-        let delivery = attribute_id("DELIVERY");
-        let spanish = attribute_id("SPANISH");
-
-        let active = ConsumerProfile::new([web.clone(), delivery.clone(), spanish]).unwrap();
-        let required = ConsumerProfile::new([web, delivery]).unwrap();
-
-        assert!(active.contains_all(&required));
-    }
-
-    #[test]
-    fn consumer_profile_rejects_duplicate_attributes() {
-        let web = attribute_id("WEB");
-
-        assert_eq!(
-            ConsumerProfile::new([web.clone(), web.clone()]),
-            Err(ConsumerProfileError::DuplicateAttribute(web))
-        );
-    }
-
-    #[test]
-    fn consumer_profile_rejects_duplicate_attributes_added_later() {
-        let web = attribute_id("WEB");
-        let profile = ConsumerProfile::empty()
-            .with_attribute(web.clone())
-            .unwrap();
-
-        assert_eq!(
-            profile.with_attribute(web.clone()),
-            Err(ConsumerProfileError::DuplicateAttribute(web))
-        );
-    }
-
-    fn attribute_id(suffix: &str) -> ConsumerAttributeId {
-        ConsumerAttributeId::from_suffix(suffix).unwrap()
-    }
-}

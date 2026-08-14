@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[doc = include_str!("typed-id.md")]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct PrefixedId {
     prefix: &'static str,

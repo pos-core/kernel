@@ -2,11 +2,28 @@ use pos_core_kernel::prelude::*;
 
 use crate::support::md_report::ReportCase;
 
-pub fn case(name: &'static str, description: &'static str, run: fn()) -> ReportCase {
-    ReportCase {
-        name,
-        description,
-        run,
+#[derive(Clone, Copy)]
+pub struct DescribedBehavior {
+    name: &'static str,
+    description: &'static str,
+    assertions: fn(),
+}
+
+impl DescribedBehavior {
+    pub const fn new(name: &'static str, description: &'static str, assertions: fn()) -> Self {
+        Self {
+            name,
+            description,
+            assertions,
+        }
+    }
+
+    pub fn report_case(self) -> ReportCase {
+        ReportCase {
+            name: self.name,
+            description: self.description,
+            run: self.assertions,
+        }
     }
 }
 
