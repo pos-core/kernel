@@ -1,0 +1,12 @@
+[package]
+name = "pos-core-kernel"
+version = "0.1.0"
+edition = "2024"
+description = "A deterministic, offline-capable domain kernel for point-of-sale systems."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/pos-core/kernel"
+readme = "README.md"
+keywords = ["point-of-sale", "pos", "domain", "offline"]
+categories = ["data-structures"]
+
+[dependencies]
