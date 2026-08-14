@@ -1,19 +1,19 @@
 # POS Core Kernel
 
-A flexible, correctness-focused distributed POS domain library.
+A correctness-focused Rust domain library for building POS systems that behave consistently across servers and distributed clients.
 
-The project is currently in the design stage. The goal is to keep the core model small, composable, distributed, and highly testable before committing to database schema or application shape.
+The project is in early development. The goal is to keep the core model small, composable, storage-independent, and highly testable before committing to database schema or application shape.
 
 POS Core Kernel should ship with a client library. POS terminals, kiosks, phone order tools, web ordering, and integrations should be able to create deterministic local operations from a downloaded catalog view, then sync those operations later.
 
-## Current Docs
+## Documentation
 
-- [domain.md](domain.md): core concepts, invariants, and test strategy.
-- [architecture.md](architecture.md): layering, publishing boundary, and first implementation milestone.
-- [rules.md](rules.md): hard project rules for core boundaries, money, time, identity, and tests.
-- [catalog-item-configuration.md](catalog-item-configuration.md): current variant, field, modifier, and pricing design target.
-- [spec.md](spec.md): earlier product/domain sketch.
-- [notes.md](notes.md): raw relational schema and versioning notes.
+- [Domain direction](domain.md): long-range domain vocabulary, goals, and open design direction.
+- [Project rules](rules.md): binding boundaries and invariants for the current implementation.
+- [Testing guide](tests/README.md): the canonical behavior-test layout and documentation workflow.
+- [Behavior index](test-coverage/index.md): generated, readable reports of the behavior currently covered by tests.
+
+Implemented concepts are defined in Markdown beside the Rust code that owns them and linked from the behavior reports. Older root-level design sketches remain useful background, but they are not the source of truth for current behavior.
 
 ## Current Direction
 
@@ -41,7 +41,7 @@ Examples:
 
 The core should remain free of UI, storage, concrete payment processors, concrete surfaces, concrete order types, and concrete fulfillment behavior.
 
-## Domain Definitions
+## Documentation Model
 
 Important domain terms have standalone Markdown definitions beside the Rust code that owns them. The owning type includes the same file as its Rust documentation:
 
@@ -52,14 +52,9 @@ pub struct ConfigurationSnapshot {
 }
 ```
 
-This keeps the Markdown page, generated Rustdoc, and behavior-report definition links anchored to one source of truth. Definitions explain what a concept means, what it contains, and how it differs from adjacent concepts; behavior tests define the rules it must satisfy.
+This keeps each Markdown page, generated Rustdoc, and behavior-report definition link anchored to one source of truth. Definitions explain what a concept means and where its boundary lies; behavior tests define the rules it must satisfy.
 
-## Test Reports
-
-`cargo test` runs each described behavior as an ordinary Rust test and writes the same behaviors to Markdown under `test-coverage/`. Each module report links the domain definitions needed to read its behavior descriptions. The canonical test layout is documented in [`tests/README.md`](tests/README.md).
-
-- `test-coverage/index.md`: all module reports
-- `tests/behavior_reports/`: colocated behavior descriptions and assertion functions
+`cargo test` runs each described behavior as an ordinary Rust test and regenerates the Markdown reports under `test-coverage/`. Behavior descriptions and their assertion functions stay together under `tests/behavior_reports/`.
 
 ## License
 
