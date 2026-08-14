@@ -13,14 +13,14 @@ Each behavior consists of three colocated parts:
 Example:
 
 ```rust
-pub const DEEPEST_MATCH_USES_ONLY_ITS_OWN_EXPLICIT_PRICE: DescribedBehavior = DescribedBehavior::new(
-    "deepest match uses only its own explicit price",
-    "Every match owns a required price...",
-    deepest_match_uses_only_its_own_explicit_price,
+pub const CONCRETE_MATCHES_CANNOT_OVERLAP: DescribedBehavior = DescribedBehavior::new(
+    "concrete matches cannot overlap as prefixes",
+    "Every match is a priced concrete leaf...",
+    concrete_matches_cannot_overlap,
 );
 
 #[test]
-fn deepest_match_uses_only_its_own_explicit_price() {
+fn concrete_matches_cannot_overlap() {
     // Assertions define the behavior contract.
 }
 ```

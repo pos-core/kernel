@@ -36,18 +36,20 @@ This file is the hard operating agreement for POS Core Kernel. It should stay st
 - Custom/manual order labels use the same `Label` primitive with no ID.
 - A catalog item owns ordered variant dimensions; dimension order controls selection presentation and combined-label order but does not require every concrete selection to use every dimension.
 - Every variant value belongs to one dimension and has a required label.
-- Authored variant matches are unordered sets of variant IDs. The catalog stores each set in dimension order and rejects two values from the same dimension.
-- A match is deepest when no authored match is its strict superset. Only deepest matches are concrete selectable configurations.
-- Every variant match owns a required explicit invariant price. Prices do not inherit between matches, and configuration uses only the selected deepest match's own price.
-- The catalog-item variant setting `allow_free_variant` defaults to false. A zero-priced deepest match is invalid unless the setting is explicitly enabled.
-- A catalog item with no dimensions uses one empty deepest match so a simple item has a required configuration and price without an unnamed variant value.
+- Authored variant matches are concrete selectable paths. Authors may supply their variant IDs in any order, but the catalog stores each path in dimension order and rejects two values from the same dimension.
+- Dimension order defines selection order and dependency. A match must contain one value from every earlier dimension it traverses, cannot skip a dimension, and may stop before later dimensions.
+- One concrete match cannot be a strict subset of another. A path cannot be both a complete selection and a prefix requiring another selection.
+- Concrete matches implicitly define the valid path tree. Given a partial path, the kernel exposes the next ordered dimension and only the values that continue into a compatible concrete match.
+- Every variant match owns a required explicit invariant price. Prices do not inherit between matches, and configuration uses only the selected match's own price.
+- The catalog-item variant setting `allow_free_variant` defaults to false. A zero-priced match is invalid unless the setting is explicitly enabled.
+- A catalog item with no dimensions uses one empty match so a simple item has a required configuration and price without an unnamed variant value. Empty matches are invalid when dimensions exist.
 - Catalog items and variant values may independently own optional label-backed descriptions and media.
 - Variant matches may independently own an optional exact label, optional label-backed description, and optional media.
 - An exact match label overrides the derived combined display label without erasing the selected component labels.
 - Description and media never inherit or merge across catalog-item, variant-value, and variant-match scopes inside the kernel.
 - Catalog-item, variant-value, and match descriptions and media are catalog presentation metadata and are excluded from configuration and order snapshots.
-- A sole deepest match is always its catalog item's effective default without requiring a marker.
-- With multiple deepest matches, one match may carry the optional explicit default marker. A catalog item may contain at most one marker, and removing that match removes the explicit default with it.
+- A sole match is always its catalog item's effective default without requiring a marker.
+- With multiple matches, one match may carry the optional explicit default marker. A catalog item may contain at most one marker, and removing that match removes the explicit default with it.
 - Catalog-item, variant-value, and variant-match media are independent and optional, each represented by an ordered `MediaCollection` allowing zero or more media definitions.
 - Media fallback and precedence across catalog definitions are client presentation concerns; the kernel exposes collections without combining them.
 - Structural strings such as typed IDs, standard kinds, currency codes, and internal enum names are not labels.

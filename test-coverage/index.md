@@ -3,14 +3,14 @@
 Each module report links the domain definitions needed to read its behaviors.
 
 - Generated: 2026-05-22 12:29:37 UTC
-- Total cases: 95
-- Passed: 95
+- Total cases: 96
+- Passed: 96
 - Failed: 0
 
 | Module | Description | Last run | Status |
 | --- | --- | --- | --- |
 | [Modifier](modifier.md) | Described behavior tests for prompts, choices, rules, hydration, dehydration, and pricing. | 2026-05-22 12:29:37 UTC | Passed |
-| [Catalog Item](catalog-item.md) | Described behavior tests for ordered variant dimensions, deepest matches, explicit base pricing, presentation metadata, defaults, and configured item pricing. | 2026-05-22 12:29:37 UTC | Passed |
+| [Catalog Item](catalog-item.md) | Described behavior tests for ordered variant paths, concrete matches, explicit base pricing, presentation metadata, defaults, and configured item pricing. | 2026-05-22 12:29:37 UTC | Passed |
 | [Order Item](order-item.md) | Described behavior tests for order-owned catalog facts, modifier snapshots, and entry expansion. | 2026-05-22 12:29:37 UTC | Passed |
 | [Order](order.md) | Described behavior tests for order events, replay, entry sources, and derived totals. | 2026-05-22 12:29:37 UTC | Passed |
 | [Money](money.md) | Described behavior tests for checked minor-unit arithmetic, integer rates, and named rounding strategies. | 2026-05-22 12:29:37 UTC | Passed |

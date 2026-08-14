@@ -277,18 +277,53 @@ impl CatalogItem {
             .find(|variant_match| variant_match.variant_ids == canonical)
     }
 
-    pub fn default_variant_match(&self) -> Option<&VariantMatch> {
-        let deepest: Vec<_> = self
+    pub fn variant_selection_step(
+        &self,
+        selected_variant_ids: &[VariantId],
+    ) -> Result<Option<VariantSelectionStep<'_>>, CatalogItemError> {
+        let canonical_variant_ids = self.canonical_variant_ids(selected_variant_ids)?;
+        let compatible_matches: Vec<_> = self
             .variant_matches
             .iter()
-            .filter(|variant_match| self.is_deepest(variant_match))
+            .filter(|variant_match| is_subset(&canonical_variant_ids, &variant_match.variant_ids))
             .collect();
 
-        deepest
+        if compatible_matches.is_empty() {
+            return Err(CatalogItemError::VariantCombinationDoesNotExist(
+                canonical_variant_ids,
+            ));
+        }
+
+        if compatible_matches
             .iter()
-            .copied()
+            .any(|variant_match| variant_match.variant_ids == canonical_variant_ids)
+        {
+            return Ok(None);
+        }
+
+        let dimension_index = canonical_variant_ids.len();
+        let dimension = &self.dimensions[dimension_index];
+        let variants = dimension
+            .variants
+            .iter()
+            .filter(|variant| {
+                compatible_matches.iter().any(|variant_match| {
+                    variant_match.variant_ids.get(dimension_index) == Some(variant.variant_id())
+                })
+            })
+            .collect();
+
+        Ok(Some(VariantSelectionStep {
+            dimension,
+            variants,
+        }))
+    }
+
+    pub fn default_variant_match(&self) -> Option<&VariantMatch> {
+        self.variant_matches
+            .iter()
             .find(|variant_match| variant_match.is_default())
-            .or_else(|| (deepest.len() == 1).then(|| deepest[0]))
+            .or_else(|| (self.variant_matches.len() == 1).then(|| &self.variant_matches[0]))
     }
 
     pub fn default_variant_ids(&self) -> Option<&[VariantId]> {
@@ -426,9 +461,7 @@ impl CatalogItem {
         let variant_match = self
             .variant_matches
             .iter()
-            .find(|candidate| {
-                self.is_deepest(candidate) && candidate.variant_ids == canonical_variant_ids
-            })
+            .find(|candidate| candidate.variant_ids == canonical_variant_ids)
             .ok_or_else(|| {
                 CatalogItemError::VariantCombinationDoesNotExist(canonical_variant_ids.clone())
             })?;
@@ -498,11 +531,9 @@ impl CatalogItem {
         variant_ids: &[VariantId],
     ) -> Result<Vec<VariantId>, CatalogItemError> {
         let locations = variant_locations(&self.dimensions);
-        canonicalize_variant_ids(variant_ids, &self.dimensions, &locations)
-    }
-
-    fn is_deepest(&self, variant_match: &VariantMatch) -> bool {
-        is_deepest_match(variant_match, &self.variant_matches)
+        let canonical = canonicalize_variant_ids(variant_ids, &self.dimensions, &locations)?;
+        validate_variant_path(&canonical, &self.dimensions, &locations)?;
+        Ok(canonical)
     }
 }
 
@@ -633,6 +664,24 @@ impl Variant {
 
     pub fn media(&self) -> &MediaCollection {
         &self.media
+    }
+}
+
+/// The next ordered dimension and the values that can continue a partial
+/// variant selection into at least one concrete match.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct VariantSelectionStep<'a> {
+    dimension: &'a VariantDimension,
+    variants: Vec<&'a Variant>,
+}
+
+impl<'a> VariantSelectionStep<'a> {
+    pub fn dimension(&self) -> &'a VariantDimension {
+        self.dimension
+    }
+
+    pub fn variants(&self) -> &[&'a Variant] {
+        &self.variants
     }
 }
 
@@ -863,7 +912,15 @@ pub enum CatalogItemError {
         left: Vec<VariantId>,
         right: Vec<VariantId>,
     },
-    DefaultRequiresConcreteVariantMatch(Vec<VariantId>),
+    EmptyVariantMatchRequiresNoDimensions(CatalogItemId),
+    VariantPathSkipsDimension {
+        variant_ids: Vec<VariantId>,
+        missing_dimension_id: VariantDimensionId,
+    },
+    OverlappingVariantMatches {
+        subset: Vec<VariantId>,
+        superset: Vec<VariantId>,
+    },
     MultipleDefaultVariantMatches {
         left: Vec<VariantId>,
         right: Vec<VariantId>,
@@ -930,10 +987,23 @@ impl fmt::Display for CatalogItemError {
                 display_variant_ids(left),
                 display_variant_ids(right)
             ),
-            Self::DefaultRequiresConcreteVariantMatch(variant_ids) => write!(
+            Self::EmptyVariantMatchRequiresNoDimensions(catalog_item_id) => write!(
                 f,
-                "default marker requires a concrete variant match, not `{}`",
+                "catalog item `{catalog_item_id}` cannot use an empty variant match when it has variant dimensions"
+            ),
+            Self::VariantPathSkipsDimension {
+                variant_ids,
+                missing_dimension_id,
+            } => write!(
+                f,
+                "variant path `{}` cannot skip dimension `{missing_dimension_id}`",
                 display_variant_ids(variant_ids)
+            ),
+            Self::OverlappingVariantMatches { subset, superset } => write!(
+                f,
+                "variant match `{}` cannot be both a concrete selection and a prefix of `{}`",
+                display_variant_ids(subset),
+                display_variant_ids(superset)
             ),
             Self::MultipleDefaultVariantMatches { left, right } => write!(
                 f,
@@ -1013,6 +1083,13 @@ fn validate_and_canonicalize_matches(
         variant_match.variant_ids =
             canonicalize_variant_ids(&variant_match.variant_ids, dimensions, variant_locations)?;
 
+        if !dimensions.is_empty() && variant_match.variant_ids.is_empty() {
+            return Err(CatalogItemError::EmptyVariantMatchRequiresNoDimensions(
+                catalog_item_id.clone(),
+            ));
+        }
+        validate_variant_path(&variant_match.variant_ids, dimensions, variant_locations)?;
+
         if !match_keys.insert(variant_match.variant_ids.clone()) {
             return Err(CatalogItemError::DuplicateVariantMatch(
                 variant_match.variant_ids.clone(),
@@ -1034,26 +1111,36 @@ fn validate_and_canonicalize_matches(
         }
     }
 
+    for left_index in 0..variant_matches.len() {
+        for right_index in (left_index + 1)..variant_matches.len() {
+            let left = &variant_matches[left_index].variant_ids;
+            let right = &variant_matches[right_index].variant_ids;
+            let overlap = if is_strict_subset(left, right) {
+                Some((left, right))
+            } else if is_strict_subset(right, left) {
+                Some((right, left))
+            } else {
+                None
+            };
+
+            if let Some((subset, superset)) = overlap {
+                return Err(CatalogItemError::OverlappingVariantMatches {
+                    subset: subset.clone(),
+                    superset: superset.clone(),
+                });
+            }
+        }
+    }
+
     let mut default_match: Option<Vec<VariantId>> = None;
     for variant_match in variant_matches.iter() {
-        let is_deepest = is_deepest_match(variant_match, variant_matches);
-
-        if is_deepest
-            && variant_match.price.amount_minor() == 0
-            && !variant_settings.allow_free_variant()
-        {
+        if variant_match.price.amount_minor() == 0 && !variant_settings.allow_free_variant() {
             return Err(CatalogItemError::FreeVariantNotAllowed(
                 variant_match.variant_ids.clone(),
             ));
         }
 
         if variant_match.is_default {
-            if !is_deepest {
-                return Err(CatalogItemError::DefaultRequiresConcreteVariantMatch(
-                    variant_match.variant_ids.clone(),
-                ));
-            }
-
             if let Some(left) = default_match {
                 return Err(CatalogItemError::MultipleDefaultVariantMatches {
                     left,
@@ -1111,17 +1198,34 @@ fn canonicalize_variant_ids(
     Ok(by_dimension.into_values().collect())
 }
 
+fn validate_variant_path(
+    variant_ids: &[VariantId],
+    dimensions: &[VariantDimension],
+    variant_locations: &BTreeMap<VariantId, usize>,
+) -> Result<(), CatalogItemError> {
+    for (expected_dimension_index, variant_id) in variant_ids.iter().enumerate() {
+        let actual_dimension_index = variant_locations[variant_id];
+        if actual_dimension_index != expected_dimension_index {
+            return Err(CatalogItemError::VariantPathSkipsDimension {
+                variant_ids: variant_ids.to_vec(),
+                missing_dimension_id: dimensions[expected_dimension_index]
+                    .variant_dimension_id
+                    .clone(),
+            });
+        }
+    }
+
+    Ok(())
+}
+
 fn is_subset(candidate: &[VariantId], concrete: &[VariantId]) -> bool {
     candidate
         .iter()
         .all(|variant_id| concrete.contains(variant_id))
 }
 
-fn is_deepest_match(candidate: &VariantMatch, variant_matches: &[VariantMatch]) -> bool {
-    !variant_matches.iter().any(|other| {
-        other.variant_ids.len() > candidate.variant_ids.len()
-            && is_subset(&candidate.variant_ids, &other.variant_ids)
-    })
+fn is_strict_subset(candidate: &[VariantId], concrete: &[VariantId]) -> bool {
+    concrete.len() > candidate.len() && is_subset(candidate, concrete)
 }
 
 fn display_variant_ids(variant_ids: &[VariantId]) -> String {

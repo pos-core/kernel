@@ -7,7 +7,7 @@ pub fn report() -> ModuleReport {
     ModuleReport {
         slug: "catalog-item",
         title: "Catalog Item",
-        description: "Described behavior tests for ordered variant dimensions, deepest matches, explicit base pricing, presentation metadata, defaults, and configured item pricing.",
+        description: "Described behavior tests for ordered variant paths, concrete matches, explicit base pricing, presentation metadata, defaults, and configured item pricing.",
         definitions: vec![
             DefinitionLink::new("Catalog item", "../src/catalog_item/catalog-item.md"),
             DefinitionLink::new(
@@ -26,14 +26,15 @@ pub fn report() -> ModuleReport {
             CATALOG_ITEM_REJECTS_INVALID_BASIC_AUTHORING.report_case(),
             EMPTY_MATCH_MODELS_AN_ITEM_WITH_NO_DIMENSIONS.report_case(),
             DIMENSION_ORDER_CONTROLS_SELECTION_AND_COMBINED_LABEL_ORDER.report_case(),
-            DEEPEST_MATCHES_CAN_STOP_AT_DIFFERENT_DEPTHS.report_case(),
+            CONCRETE_MATCHES_CAN_STOP_AT_DIFFERENT_DEPTHS.report_case(),
+            VARIANT_SELECTION_STEPS_ARE_DERIVED_FROM_CONCRETE_MATCHES.report_case(),
             SPARSE_MATCHES_DEFINE_ONLY_AUTHORED_COMBINATIONS.report_case(),
-            DEEPEST_MATCH_USES_ONLY_ITS_OWN_EXPLICIT_PRICE.report_case(),
+            CONCRETE_MATCHES_CANNOT_OVERLAP.report_case(),
             FREE_VARIANTS_REQUIRE_EXPLICIT_CATALOG_ITEM_PERMISSION.report_case(),
             MATCHES_REJECT_INVALID_OR_DUPLICATE_VARIANT_SETS.report_case(),
             MATCH_PRICES_REQUIRE_ONE_CURRENCY.report_case(),
-            EXPLICIT_DEFAULT_MATCH_IS_OPTIONAL_UNIQUE_AND_CONCRETE.report_case(),
-            IMPLICIT_CONFIGURATION_USES_DEFAULT_OR_SOLE_DEEPEST_MATCH.report_case(),
+            EXPLICIT_DEFAULT_MATCH_IS_OPTIONAL_AND_UNIQUE.report_case(),
+            IMPLICIT_CONFIGURATION_USES_DEFAULT_OR_SOLE_MATCH.report_case(),
             CATALOG_ITEMS_VARIANTS_AND_MATCHES_HAVE_INDEPENDENT_OPTIONAL_METADATA.report_case(),
             CONFIGURED_MATCH_RETURNS_EFFECTS_AND_PRICES_SHARED_MODIFIERS.report_case(),
             MATCH_CONTROLS_MODIFIER_CHOICE_AND_PROMPT_APPLICABILITY.report_case(),
@@ -94,7 +95,7 @@ fn catalog_item_rejects_invalid_basic_authoring() {
 
 pub const EMPTY_MATCH_MODELS_AN_ITEM_WITH_NO_DIMENSIONS: DescribedBehavior = DescribedBehavior::new(
     "empty match models an item with no dimensions",
-    "A catalog item with no dimensions still has one required concrete selection: an empty deepest match that resolves its price without inventing an unnamed variant.",
+    "A catalog item with no dimensions still has one required concrete selection: an empty match that resolves its price without inventing an unnamed variant.",
     empty_match_models_an_item_with_no_dimensions,
 );
 
@@ -162,29 +163,33 @@ fn dimension_order_controls_selection_and_combined_label_order() {
     assert_eq!(configured.variant_title(), Some("Small, Thin".to_owned()));
 }
 
-pub const DEEPEST_MATCHES_CAN_STOP_AT_DIFFERENT_DEPTHS: DescribedBehavior = DescribedBehavior::new(
-    "deepest matches can stop at different depths",
-    "Deepest is relative to authored supersets rather than the number of dimensions, so unrelated Crust and Size selections can each be concrete one-value matches.",
-    deepest_matches_can_stop_at_different_depths,
+pub const CONCRETE_MATCHES_CAN_STOP_AT_DIFFERENT_DEPTHS: DescribedBehavior = DescribedBehavior::new(
+    "concrete matches can stop at different path depths",
+    "Every match is a concrete ordered path, but paths may stop before later dimensions after they diverge; a Small selection can therefore be complete while Large continues to Crust.",
+    concrete_matches_can_stop_at_different_depths,
 );
 
 #[test]
-fn deepest_matches_can_stop_at_different_depths() {
+fn concrete_matches_can_stop_at_different_depths() {
     let catalog_item = CatalogItem::new(
         catalog_item_id("01PIZZA"),
         "Pizza",
         vec![
             dimension(
+                "01SIZE",
+                "Size",
+                vec![variant("01SMALL", "Small"), variant("01LARGE", "Large")],
+            ),
+            dimension(
                 "01CRUST",
                 "Crust",
                 vec![variant("01THICK", "Thick"), variant("01THIN", "Thin")],
             ),
-            dimension("01SIZE", "Size", vec![variant("01SMALL", "Small")]),
         ],
         vec![
-            priced_match(&["01THICK"], 1400),
-            priced_match(&["01THIN"], 1200),
             priced_match(&["01SMALL"], 1000),
+            priced_match(&["01LARGE", "01THICK"], 1400),
+            priced_match(&["01LARGE", "01THIN"], 1200),
         ],
         Modifiers::new(Vec::new()),
     )
@@ -192,30 +197,98 @@ fn deepest_matches_can_stop_at_different_depths() {
 
     assert!(
         catalog_item
-            .configure_variants(&[variant_id("01THICK")], &Selections::new())
+            .configure_variants(&[variant_id("01SMALL")], &Selections::new())
             .is_ok()
     );
     assert!(
         catalog_item
-            .configure_variants(&[variant_id("01SMALL")], &Selections::new())
+            .configure_variants(
+                &[variant_id("01LARGE"), variant_id("01THICK")],
+                &Selections::new(),
+            )
             .is_ok()
     );
     assert_eq!(
-        catalog_item.configure_variants(
-            &[variant_id("01THIN"), variant_id("01SMALL")],
-            &Selections::new(),
-        ),
+        catalog_item.configure_variants(&[variant_id("01LARGE")], &Selections::new()),
         Err(CatalogItemError::VariantCombinationDoesNotExist(vec![
-            variant_id("01THIN"),
-            variant_id("01SMALL"),
+            variant_id("01LARGE")
         ]))
+    );
+}
+
+pub const VARIANT_SELECTION_STEPS_ARE_DERIVED_FROM_CONCRETE_MATCHES: DescribedBehavior =
+    DescribedBehavior::new(
+        "variant selection steps are derived from concrete matches",
+        "The next ordered dimension and its valid values come from concrete matches compatible with the partial selection; Coffee therefore offers only Cold after Large without an independently authored path tree.",
+        variant_selection_steps_are_derived_from_concrete_matches,
+    );
+
+#[test]
+fn variant_selection_steps_are_derived_from_concrete_matches() {
+    let catalog_item = coffee();
+
+    let first_step = catalog_item.variant_selection_step(&[]).unwrap().unwrap();
+    assert_eq!(
+        first_step.dimension().variant_dimension_id(),
+        &variant_dimension_id("01SIZE")
+    );
+    assert_eq!(
+        first_step
+            .variants()
+            .iter()
+            .map(|variant| variant.title())
+            .collect::<Vec<_>>(),
+        vec!["Small", "Medium", "Large"]
+    );
+
+    let small_step = catalog_item
+        .variant_selection_step(&[variant_id("01SMALL")])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        small_step
+            .variants()
+            .iter()
+            .map(|variant| variant.title())
+            .collect::<Vec<_>>(),
+        vec!["Hot", "Cold"]
+    );
+
+    let large_step = catalog_item
+        .variant_selection_step(&[variant_id("01LARGE")])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        large_step.dimension().variant_dimension_id(),
+        &variant_dimension_id("01TEMPERATURE")
+    );
+    assert_eq!(
+        large_step
+            .variants()
+            .iter()
+            .map(|variant| variant.title())
+            .collect::<Vec<_>>(),
+        vec!["Cold"]
+    );
+    assert_eq!(
+        catalog_item
+            .variant_selection_step(&[variant_id("01LARGE"), variant_id("01COLD")])
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        catalog_item.variant_selection_step(&[variant_id("01HOT")]),
+        Err(CatalogItemError::VariantPathSkipsDimension {
+            variant_ids: vec![variant_id("01HOT")],
+            missing_dimension_id: variant_dimension_id("01SIZE"),
+        })
     );
 }
 
 pub const SPARSE_MATCHES_DEFINE_ONLY_AUTHORED_COMBINATIONS: DescribedBehavior =
     DescribedBehavior::new(
         "sparse matches define only authored combinations",
-        "Dimensions do not imply a Cartesian product; pizza size and crust values form concrete selections only where a deepest match is authored.",
+        "Dimensions do not imply a Cartesian product; pizza and shirt combinations exist only where an explicitly priced concrete match is authored.",
         sparse_matches_define_only_authored_combinations,
     );
 
@@ -251,45 +324,69 @@ fn sparse_matches_define_only_authored_combinations() {
             variant_id("01THIN"),
         ]))
     );
+
+    let shirt = sparse_shirt();
+    for pair in [
+        ["01LARGE", "01BLUE"],
+        ["01MEDIUM", "01BLACK"],
+        ["01MEDIUM", "01RED"],
+        ["01MEDIUM", "01BLUE"],
+        ["01SMALL", "01GREEN"],
+    ] {
+        assert!(
+            shirt
+                .configure_variants(
+                    &[variant_id(pair[0]), variant_id(pair[1])],
+                    &Selections::new(),
+                )
+                .is_ok()
+        );
+    }
+    assert_eq!(
+        shirt.configure_variants(
+            &[variant_id("01LARGE"), variant_id("01RED")],
+            &Selections::new(),
+        ),
+        Err(CatalogItemError::VariantCombinationDoesNotExist(vec![
+            variant_id("01LARGE"),
+            variant_id("01RED"),
+        ]))
+    );
 }
 
-pub const DEEPEST_MATCH_USES_ONLY_ITS_OWN_EXPLICIT_PRICE: DescribedBehavior =
-    DescribedBehavior::new(
-        "deepest match uses only its own explicit price",
-        "Every match owns a required price, and configuration uses the selected deepest match's price without inheriting from a shallower match.",
-        deepest_match_uses_only_its_own_explicit_price,
-    );
+pub const CONCRETE_MATCHES_CANNOT_OVERLAP: DescribedBehavior = DescribedBehavior::new(
+    "concrete matches cannot overlap as prefixes",
+    "Every match is a priced concrete leaf, so one match cannot be a strict subset of another and no authored match carries an ignored or inherited price.",
+    concrete_matches_cannot_overlap,
+);
 
 #[test]
-fn deepest_match_uses_only_its_own_explicit_price() {
-    let catalog_item = CatalogItem::new(
-        catalog_item_id("01SHIRT"),
-        "Shirt",
-        vec![
-            dimension("01SIZE", "Size", vec![variant("01SMALL", "Small")]),
-            dimension("01COLOR", "Color", vec![variant("01GREEN", "Green")]),
-        ],
-        vec![
-            priced_match(&["01SMALL"], 2000),
-            priced_match(&["01SMALL", "01GREEN"], 2300),
-        ],
-        Modifiers::new(Vec::new()),
-    )
-    .unwrap();
-
-    let configured = catalog_item
-        .configure_variants(
-            &[variant_id("01SMALL"), variant_id("01GREEN")],
-            &Selections::new(),
-        )
-        .unwrap();
-    assert_eq!(configured.invariant_price().amount_minor(), 2300);
+fn concrete_matches_cannot_overlap() {
+    assert_eq!(
+        CatalogItem::new(
+            catalog_item_id("01SHIRT"),
+            "Shirt",
+            vec![
+                dimension("01SIZE", "Size", vec![variant("01SMALL", "Small")]),
+                dimension("01COLOR", "Color", vec![variant("01GREEN", "Green")]),
+            ],
+            vec![
+                priced_match(&["01SMALL"], 2000),
+                priced_match(&["01SMALL", "01GREEN"], 2300),
+            ],
+            Modifiers::new(Vec::new()),
+        ),
+        Err(CatalogItemError::OverlappingVariantMatches {
+            subset: vec![variant_id("01SMALL")],
+            superset: vec![variant_id("01SMALL"), variant_id("01GREEN")],
+        })
+    );
 }
 
 pub const FREE_VARIANTS_REQUIRE_EXPLICIT_CATALOG_ITEM_PERMISSION: DescribedBehavior =
     DescribedBehavior::new(
         "free variants require explicit catalog item permission",
-        "The allow_free_variant setting defaults to false, so a zero-priced deepest match is rejected unless the catalog item explicitly enables free variants.",
+        "The allow_free_variant setting defaults to false, so a zero-priced concrete match is rejected unless the catalog item explicitly enables free variants.",
         free_variants_require_explicit_catalog_item_permission,
     );
 
@@ -333,7 +430,7 @@ fn free_variants_require_explicit_catalog_item_permission() {
 pub const MATCHES_REJECT_INVALID_OR_DUPLICATE_VARIANT_SETS: DescribedBehavior =
     DescribedBehavior::new(
         "matches reject invalid or duplicate variant sets",
-        "Variant IDs are unique across dimensions; a match cannot use two values from one dimension, reference an unknown value, or duplicate another unordered match.",
+        "Variant IDs are unique across dimensions; a match cannot be empty when dimensions exist, skip an earlier dimension, use two values from one dimension, reference an unknown value, or duplicate another unordered match.",
         matches_reject_invalid_or_duplicate_variant_sets,
     );
 
@@ -371,6 +468,31 @@ fn matches_reject_invalid_or_duplicate_variant_sets() {
             Modifiers::new(Vec::new()),
         ),
         Err(CatalogItemError::UnknownVariant(variant_id("01UNKNOWN")))
+    );
+    assert_eq!(
+        CatalogItem::new(
+            catalog_item_id("01PIZZA"),
+            "Pizza",
+            dimensions.clone(),
+            vec![priced_match(&[], 1200)],
+            Modifiers::new(Vec::new()),
+        ),
+        Err(CatalogItemError::EmptyVariantMatchRequiresNoDimensions(
+            catalog_item_id("01PIZZA")
+        ))
+    );
+    assert_eq!(
+        CatalogItem::new(
+            catalog_item_id("01PIZZA"),
+            "Pizza",
+            dimensions.clone(),
+            vec![priced_match(&["01THIN"], 1200)],
+            Modifiers::new(Vec::new()),
+        ),
+        Err(CatalogItemError::VariantPathSkipsDimension {
+            variant_ids: vec![variant_id("01THIN")],
+            missing_dimension_id: variant_dimension_id("01SIZE"),
+        })
     );
     assert_eq!(
         CatalogItem::new(
@@ -425,15 +547,14 @@ fn match_prices_require_one_currency() {
     );
 }
 
-pub const EXPLICIT_DEFAULT_MATCH_IS_OPTIONAL_UNIQUE_AND_CONCRETE: DescribedBehavior =
-    DescribedBehavior::new(
-        "explicit default match is optional unique and concrete",
-        "A multi-selection item accepts at most one default marker, and only a deepest match can carry it so removing the match cannot leave a dangling reference.",
-        explicit_default_match_is_optional_unique_and_concrete,
-    );
+pub const EXPLICIT_DEFAULT_MATCH_IS_OPTIONAL_AND_UNIQUE: DescribedBehavior = DescribedBehavior::new(
+    "explicit default match is optional and unique",
+    "A multi-match item accepts at most one default marker; because every match is concrete, the marker always points directly at a selectable configuration and disappears with that match.",
+    explicit_default_match_is_optional_and_unique,
+);
 
 #[test]
-fn explicit_default_match_is_optional_unique_and_concrete() {
+fn explicit_default_match_is_optional_and_unique() {
     let dimensions = vec![dimension(
         "01SIZE",
         "Size",
@@ -468,36 +589,17 @@ fn explicit_default_match_is_optional_unique_and_concrete() {
             right: vec![variant_id("01LARGE")],
         })
     );
-
-    assert_eq!(
-        CatalogItem::new(
-            catalog_item_id("01SHIRT"),
-            "Shirt",
-            vec![
-                dimension("01SIZE", "Size", vec![variant("01SMALL", "Small")]),
-                dimension("01COLOR", "Color", vec![variant("01GREEN", "Green")]),
-            ],
-            vec![
-                priced_match(&["01SMALL"], 2000).with_default(),
-                priced_match(&["01SMALL", "01GREEN"], 2300),
-            ],
-            Modifiers::new(Vec::new()),
-        ),
-        Err(CatalogItemError::DefaultRequiresConcreteVariantMatch(vec![
-            variant_id("01SMALL")
-        ]))
-    );
 }
 
-pub const IMPLICIT_CONFIGURATION_USES_DEFAULT_OR_SOLE_DEEPEST_MATCH: DescribedBehavior =
+pub const IMPLICIT_CONFIGURATION_USES_DEFAULT_OR_SOLE_MATCH: DescribedBehavior =
     DescribedBehavior::new(
-        "implicit configuration uses the default or sole deepest match",
-        "Configuration without explicit variant IDs uses the marked default or the sole deepest match; multiple unmarked deepest matches require a selection.",
-        implicit_configuration_uses_default_or_sole_deepest_match,
+        "implicit configuration uses the default or sole match",
+        "Configuration without explicit variant IDs uses the marked default or the sole concrete match; multiple unmarked matches require a selection.",
+        implicit_configuration_uses_default_or_sole_match,
     );
 
 #[test]
-fn implicit_configuration_uses_default_or_sole_deepest_match() {
+fn implicit_configuration_uses_default_or_sole_match() {
     let dimensions = vec![dimension(
         "01SIZE",
         "Size",
@@ -625,7 +727,7 @@ fn catalog_items_variants_and_matches_have_independent_optional_metadata() {
 pub const CONFIGURED_MATCH_RETURNS_EFFECTS_AND_PRICES_SHARED_MODIFIERS: DescribedBehavior =
     DescribedBehavior::new(
         "configured match returns effects and prices shared modifiers",
-        "Configuring a deepest match returns its effects, resolved invariant price, hydrated shared modifiers, modifier contributions, and total price.",
+        "Configuring a concrete match returns its effects, explicit invariant price, hydrated shared modifiers, modifier contributions, and total price.",
         configured_match_returns_effects_and_prices_shared_modifiers,
     );
 
@@ -669,8 +771,8 @@ fn configured_match_returns_effects_and_prices_shared_modifiers() {
 
 pub const MATCH_CONTROLS_MODIFIER_CHOICE_AND_PROMPT_APPLICABILITY: DescribedBehavior =
     DescribedBehavior::new(
-        "deepest match controls modifier applicability",
-        "Different deepest matches can restrict shared modifier choices or prompts without duplicating the modifier tree.",
+        "concrete match controls modifier applicability",
+        "Different concrete matches can restrict shared modifier choices or prompts without duplicating the modifier tree.",
         match_controls_modifier_choice_and_prompt_applicability,
     );
 
@@ -712,7 +814,10 @@ fn match_controls_modifier_choice_and_prompt_applicability() {
         vec![ChoiceSelection::new(component_id("01PEPPER"), 1)],
     );
     assert_eq!(
-        catalog_item.configure_variants(&[variant_id("01CHEESE-ONLY")], &topping_selection,),
+        catalog_item.configure_variants(
+            &[variant_id("01SMALL"), variant_id("01CHEESE-ONLY")],
+            &topping_selection,
+        ),
         Err(CatalogItemError::Modifier(
             ModifierError::InapplicablePromptSelection(toppings_id)
         ))
@@ -749,6 +854,75 @@ fn item_with_no_modifier_prompts_accepts_empty_selection() {
             ModifierError::UnknownPromptSelection(component_id("01MILK"))
         ))
     );
+}
+
+fn coffee() -> CatalogItem {
+    CatalogItem::new(
+        catalog_item_id("01COFFEE"),
+        "Coffee",
+        vec![
+            dimension(
+                "01SIZE",
+                "Size",
+                vec![
+                    variant("01SMALL", "Small"),
+                    variant("01MEDIUM", "Medium"),
+                    variant("01LARGE", "Large"),
+                ],
+            ),
+            dimension(
+                "01TEMPERATURE",
+                "Temperature",
+                vec![variant("01HOT", "Hot"), variant("01COLD", "Cold")],
+            ),
+        ],
+        vec![
+            priced_match(&["01SMALL", "01HOT"], 300),
+            priced_match(&["01SMALL", "01COLD"], 300),
+            priced_match(&["01MEDIUM", "01HOT"], 400),
+            priced_match(&["01MEDIUM", "01COLD"], 400),
+            priced_match(&["01LARGE", "01COLD"], 500),
+        ],
+        Modifiers::new(Vec::new()),
+    )
+    .unwrap()
+}
+
+fn sparse_shirt() -> CatalogItem {
+    CatalogItem::new(
+        catalog_item_id("01SHIRT"),
+        "Shirt",
+        vec![
+            dimension(
+                "01SIZE",
+                "Size",
+                vec![
+                    variant("01LARGE", "Large"),
+                    variant("01MEDIUM", "Medium"),
+                    variant("01SMALL", "Small"),
+                ],
+            ),
+            dimension(
+                "01COLOR",
+                "Color",
+                vec![
+                    variant("01BLUE", "Blue"),
+                    variant("01BLACK", "Black"),
+                    variant("01RED", "Red"),
+                    variant("01GREEN", "Green"),
+                ],
+            ),
+        ],
+        vec![
+            priced_match(&["01LARGE", "01BLUE"], 2500),
+            priced_match(&["01MEDIUM", "01BLACK"], 2500),
+            priced_match(&["01MEDIUM", "01RED"], 2500),
+            priced_match(&["01MEDIUM", "01BLUE"], 2500),
+            priced_match(&["01SMALL", "01GREEN"], 2500),
+        ],
+        Modifiers::new(Vec::new()),
+    )
+    .unwrap()
 }
 
 fn sparse_pizza() -> CatalogItem {
@@ -825,7 +999,7 @@ fn catalog_item_pizza() -> CatalogItem {
             )
             .unwrap(),
             VariantMatch::new(
-                vec![variant_id("01CHEESE-ONLY")],
+                vec![variant_id("01SMALL"), variant_id("01CHEESE-ONLY")],
                 usd(1000),
                 vec![catalog_item_variant_effect("cheese-only")],
             )

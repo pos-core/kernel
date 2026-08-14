@@ -20,7 +20,7 @@ pub mod prelude {
     pub use crate::actor::{ActorContext, ActorKind};
     pub use crate::catalog_item::{
         CatalogItem, CatalogItemError, ConfiguredCatalogItem, Variant, VariantDimension,
-        VariantMatch, VariantSettings,
+        VariantMatch, VariantSelectionStep, VariantSettings,
     };
     pub use crate::effect::{
         Effect, EffectDomain, EffectPayload, EffectRequirement, EffectSource, EffectTarget,
