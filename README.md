@@ -13,7 +13,7 @@ POS Core Kernel should ship with a client library. POS terminals, kiosks, phone 
 - [Testing guide](tests/README.md): the canonical behavior-test layout and documentation workflow.
 - [Behavior index](test-coverage/index.md): generated, readable reports of the behavior currently covered by tests.
 
-Implemented concepts are defined in Markdown beside the Rust code that owns them and linked from the behavior reports. Older root-level design sketches remain useful background, but they are not the source of truth for current behavior.
+Implemented concepts are defined in Markdown beside the Rust code that owns them and linked from the behavior reports. Those definitions and reports are the source of truth for current behavior.
 
 ## Current Direction
 

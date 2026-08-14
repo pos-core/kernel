@@ -2,7 +2,7 @@
 
 POS Core Kernel should have a small set of concepts with strict behavior. The model should be flexible because concepts compose, not because every feature gets a new entity.
 
-For the current hard rules, see [rules.md](rules.md). For the current catalog item, variant, field, modifier, and modifier pricing design target, see [catalog-item-configuration.md](catalog-item-configuration.md). Those focused notes supersede older exploratory catalog sketches in this file where they conflict.
+For binding implementation rules, see [rules.md](rules.md). For implemented behavior, use the source-adjacent domain definitions and generated behavior reports linked from the project README. Those focused sources supersede exploratory direction in this file where they conflict.
 
 ## Goals
 
