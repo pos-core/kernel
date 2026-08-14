@@ -35,10 +35,18 @@ This file is the hard operating agreement for POS Core Kernel. It should stay st
 - Labels may have stable IDs so catalog-authored strings can support translations, consumer-specific variants, and historical snapshots.
 - Custom/manual order labels use the same `Label` primitive with no ID.
 - A catalog item must have at least one priced variant. Its sole variant may omit a label because there is no user-facing distinction to select; when multiple variants exist, every variant requires a label.
+- Catalog items and variants may independently own optional label-backed descriptions.
+- Catalog-item and variant descriptions are catalog presentation metadata and are excluded from configuration and order snapshots.
+- A sole variant is always its catalog item's effective default without requiring a marker.
+- With multiple variants, one variant may mark itself as the optional explicit default. A catalog item may contain at most one marker, and removing that variant removes the explicit default with it.
+- Catalog-item and variant media are independent and optional, each represented by an ordered `MediaCollection` allowing zero or more media definitions.
+- Media fallback and precedence across catalog definitions are client presentation concerns; the kernel exposes collections without combining them.
 - Structural strings such as typed IDs, standard kinds, currency codes, and internal enum names are not labels.
-- Labels resolve against a `ConsumerProfile`, which is a compact set of generic `ConsumerAttribute` IDs.
+- Labels resolve against a `ConsumerProfile`, which is an ordered list of unique generic `ConsumerAttribute` IDs.
 - Surfaces, fulfillment modes, locale preferences, printers, receipts, prep displays, and other consumers may contribute attributes to a profile.
-- Label resolution chooses the most specific matching label value and rejects equally specific ambiguous matches.
+- Label resolution chooses the most specific matching value, then uses active consumer-profile order to break equal-specificity ties.
+- Earlier consumer-profile attributes have higher precedence; label definition order does not affect resolution.
+- Translations are label value variants selected by language or locale attributes in the active consumer profile.
 - Order snapshots preserve the resolved label values used at order time and may also preserve label IDs for traceability.
 - Changing a label definition or translation must not reinterpret an existing order.
 

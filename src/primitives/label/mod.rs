@@ -64,7 +64,7 @@ impl Label {
         if self
             .values
             .iter()
-            .any(|label_value| label_value.required_profile() == &profile)
+            .any(|label_value| label_value.required_profile().has_same_attributes(&profile))
         {
             return Err(LabelError::DuplicateProfile {
                 label_id: self.label_id.clone(),
@@ -100,7 +100,12 @@ impl Label {
         {
             let specificity = value.required_profile().len();
 
-            match best.map(|current| specificity.cmp(&current.required_profile().len())) {
+            match best.map(|current| {
+                consumer_profile.compare_matching_precedence(
+                    value.required_profile(),
+                    current.required_profile(),
+                )
+            }) {
                 None | Some(std::cmp::Ordering::Greater) => {
                     best = Some(value);
                     ambiguous_specificity = None;

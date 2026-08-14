@@ -47,6 +47,7 @@ A catalog item configuration is valid when:
 
 - exactly one valid variant combination is resolved
 - a sole variant may be unlabeled, while every variant must have a label when multiple variants exist
+- zero or one variant may be marked as the default
 - every applicable required field is valid
 - every applicable required modifier prompt is valid
 - every nested applicable modifier prompt is valid
@@ -76,7 +77,9 @@ Examples:
 - coffee hot/cold
 - catering package size
 
-A variant selection does not need to have a default. A merchant may provide a default variant for convenience, but the invariant is that a valid catalog item configuration must resolve a variant.
+A variant selection does not need to have a default. A merchant may mark one concrete variant as the optional default, and a catalog item rejects multiple variants marked as default. The marker lives on the variant itself, so removing that variant also removes the default instead of leaving a dangling reference.
+
+An explicit variant selection wins over the default. When no variant ID is supplied, configuration uses the marked default, then falls back to the sole variant. A catalog item with multiple variants and no default requires an explicit selection.
 
 A catalog item must define at least one priced variant. When an item has exactly one variant, that variant is the implicit configuration and may omit its label because there is no user-facing variant distinction to select. A sole variant may still have a label when the distinction is meaningful. Once an item has multiple variants, every variant must have a non-empty label. Expanding an unlabeled single-variant item into multiple variants therefore requires naming the existing variant as part of the same authoring change.
 
@@ -180,6 +183,8 @@ Modifiers
 - optional nested modifiers
 - pricing definition
 
+`CatalogItem` and `Variant` may each own an independent media collection. An empty collection means no media at that level, while a non-empty collection may contain multiple ordered media definitions.
+
 Choice schedules are authored availability. If a choice has a schedule, it can only be evaluated with an explicit `EvaluationTime`; if it has no schedule, time does not restrict it. A choice outside its schedule is not visible in time-filtered modifier traversal and cannot be selected. Temporary 86ing should be represented as schedule-shaped availability, while live stock remains a separate operational layer outside the catalog.
 
 Effects remain separate from rules and pricing. A choice may emit effects, but modifiers do not need to know how stock, prep, tax, reporting, or order policies consume them.
@@ -237,6 +242,8 @@ An order-safe configuration snapshot should include:
 
 Media is catalog/view presentation metadata and is not included in configuration or order snapshots by default.
 
+Catalog-item and variant descriptions are also catalog presentation metadata, but unlike labels they are intentionally excluded from configuration and order snapshots.
+
 References are still useful for traceability and editing. They are not sufficient for representing an order. A receipt, refund, kitchen reprint, audit view, and report must be explainable from the order snapshot itself.
 
 Changing catalog defaults, labels, prices, modifier rules, or deleting catalog entities must not reinterpret an existing order.
@@ -264,7 +271,8 @@ Resolution:
 
 - a label value matches when all of its required consumer attributes are present in the active `ConsumerProfile`
 - the most specific matching value wins
-- equally specific matching values are invalid label data
+- when equally specific values match, the earliest differing attribute in the ordered active `ConsumerProfile` wins
+- label definition order does not affect resolution
 - if no value matches, the label default is used
 
 Important consumer attributes may represent:
@@ -280,7 +288,9 @@ Important consumer attributes may represent:
 
 Snapshots should preserve the resolved label values used at order time. They may also preserve the label ID for traceability, but rendering an old order must not require resolving the label from the current catalog.
 
-The current Rust code stores label-backed fields for catalog items, labeled variants, prompts, choices, and prompt descriptions. A sole implicit variant may have no label; this is represented as label absence, never as an empty `Label`. Some getter names still expose `title` and `description` strings as compatibility/readability helpers over the default or resolved label value.
+Translations use the same label-value mechanism rather than a separate translation shape. Language or locale attributes participate in the active `ConsumerProfile`, and they can combine with consumer attributes such as KDS or receipt to select a more-specific value.
+
+The current Rust code stores label-backed fields for catalog items, labeled variants, prompts, choices, catalog-item descriptions, variant descriptions, and prompt descriptions. Catalog-item and variant descriptions are optional and independent of their primary labels. A sole implicit variant may have no label; this is represented as label absence, never as an empty `Label`. Some getter names still expose `title` and `description` strings as compatibility/readability helpers over the default or resolved label value.
 
 ## Media
 
@@ -310,10 +320,11 @@ Rules:
 - duplicate default media IDs are invalid inside one collection
 - media variants require a non-empty `ConsumerProfile`
 - media resolution chooses the most specific matching variant and falls back to default
-- equally specific matching variants are invalid
+- equally specific media variants use the active `ConsumerProfile` order for precedence
 - media labels resolve with the same active `ConsumerProfile`
 - dimensions are optional, but width and height must be nonzero when present
-- choices can own a media collection
+- catalog items, variants, and choices can own media collections
+- the kernel does not choose, combine, or apply fallback between media collections; that is client presentation behavior
 - media does not survive into configuration or order snapshots unless a future workflow explicitly needs that
 
 ## Selection Identity

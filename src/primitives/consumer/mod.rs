@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::cmp::Ordering;
 use std::fmt;
 
 use crate::primitives::ids::ConsumerAttributeId;
@@ -53,7 +53,7 @@ impl std::error::Error for ConsumerAttributeError {}
 #[doc = include_str!("consumer-profile.md")]
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct ConsumerProfile {
-    attributes: BTreeSet<ConsumerAttributeId>,
+    attributes: Vec<ConsumerAttributeId>,
 }
 
 impl ConsumerProfile {
@@ -77,14 +77,16 @@ impl ConsumerProfile {
         mut self,
         attribute_id: ConsumerAttributeId,
     ) -> Result<Self, ConsumerProfileError> {
-        if !self.attributes.insert(attribute_id.clone()) {
+        if self.attributes.contains(&attribute_id) {
             return Err(ConsumerProfileError::DuplicateAttribute(attribute_id));
         }
+
+        self.attributes.push(attribute_id);
 
         Ok(self)
     }
 
-    pub fn attributes(&self) -> &BTreeSet<ConsumerAttributeId> {
+    pub fn attributes(&self) -> &[ConsumerAttributeId] {
         &self.attributes
     }
 
@@ -97,6 +99,31 @@ impl ConsumerProfile {
             .attributes
             .iter()
             .all(|attribute_id| self.contains(attribute_id))
+    }
+
+    pub(crate) fn has_same_attributes(&self, other: &ConsumerProfile) -> bool {
+        self.len() == other.len() && self.contains_all(other)
+    }
+
+    pub(crate) fn compare_matching_precedence(
+        &self,
+        left: &ConsumerProfile,
+        right: &ConsumerProfile,
+    ) -> Ordering {
+        match left.len().cmp(&right.len()) {
+            Ordering::Equal => {}
+            ordering => return ordering,
+        }
+
+        for attribute_id in &self.attributes {
+            match (left.contains(attribute_id), right.contains(attribute_id)) {
+                (true, false) => return Ordering::Greater,
+                (false, true) => return Ordering::Less,
+                _ => {}
+            }
+        }
+
+        Ordering::Equal
     }
 
     pub fn len(&self) -> usize {

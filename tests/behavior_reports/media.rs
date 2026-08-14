@@ -16,7 +16,7 @@ pub fn report() -> ModuleReport {
             MEDIA_COLLECTION_REJECTS_DUPLICATE_DEFAULTS.report_case(),
             MEDIA_RESOLVES_MOST_SPECIFIC_CONSUMER_PROFILE_VARIANT.report_case(),
             MEDIA_FALLS_BACK_TO_DEFAULT.report_case(),
-            MEDIA_REJECTS_AMBIGUOUS_EQUAL_SPECIFICITY_VARIANTS.report_case(),
+            MEDIA_USES_CONSUMER_PROFILE_ORDER_FOR_EQUAL_SPECIFICITY.report_case(),
             MEDIA_VALIDATES_MIME_TYPES_AND_DIMENSIONS.report_case(),
         ],
     }
@@ -107,23 +107,22 @@ fn media_falls_back_to_default() {
     assert!(resolved.matched_profile().is_none());
 }
 
-pub const MEDIA_REJECTS_AMBIGUOUS_EQUAL_SPECIFICITY_VARIANTS: DescribedBehavior =
+pub const MEDIA_USES_CONSUMER_PROFILE_ORDER_FOR_EQUAL_SPECIFICITY: DescribedBehavior =
     DescribedBehavior::new(
-        "media rejects ambiguous equal specificity variants",
-        "Media resolution rejects equally specific matching variants instead of relying on definition order.",
-        media_rejects_ambiguous_equal_specificity_variants,
+        "media uses consumer profile order for equal specificity",
+        "When equally specific media variants match, the variant containing the earliest differing attribute in the active consumer profile wins.",
+        media_uses_consumer_profile_order_for_equal_specificity,
     );
 
 #[test]
-fn media_rejects_ambiguous_equal_specificity_variants() {
-    let web = consumer_attribute_id("WEB");
-    let delivery = consumer_attribute_id("DELIVERY");
+fn media_uses_consumer_profile_order_for_equal_specificity() {
+    let kds = consumer_attribute_id("KDS");
     let spanish = consumer_attribute_id("SPANISH");
     let media = Media::new(media_id("BURGER-DEFAULT"), mime("image/webp"))
         .with_variant(
             MediaVariant::new(
-                ConsumerProfile::new([web.clone(), delivery.clone()]).unwrap(),
-                media_id("BURGER-DELIVERY"),
+                ConsumerProfile::new([kds.clone()]).unwrap(),
+                media_id("BURGER-KDS"),
                 mime("image/jpeg"),
             )
             .unwrap(),
@@ -131,7 +130,7 @@ fn media_rejects_ambiguous_equal_specificity_variants() {
         .unwrap()
         .with_variant(
             MediaVariant::new(
-                ConsumerProfile::new([web.clone(), spanish.clone()]).unwrap(),
+                ConsumerProfile::new([spanish.clone()]).unwrap(),
                 media_id("BURGER-SPANISH"),
                 mime("image/png"),
             )
@@ -139,10 +138,15 @@ fn media_rejects_ambiguous_equal_specificity_variants() {
         )
         .unwrap();
 
-    assert!(matches!(
-        media.resolve(&ConsumerProfile::new([web, delivery, spanish]).unwrap()),
-        Err(MediaError::AmbiguousResolution { specificity: 2, .. })
-    ));
+    let kds_first = media
+        .resolve(&ConsumerProfile::new([kds.clone(), spanish.clone()]).unwrap())
+        .unwrap();
+    let spanish_first = media
+        .resolve(&ConsumerProfile::new([spanish, kds]).unwrap())
+        .unwrap();
+
+    assert_eq!(kds_first.media_id(), &media_id("BURGER-KDS"));
+    assert_eq!(spanish_first.media_id(), &media_id("BURGER-SPANISH"));
 }
 
 pub const MEDIA_VALIDATES_MIME_TYPES_AND_DIMENSIONS: DescribedBehavior = DescribedBehavior::new(

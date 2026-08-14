@@ -16,33 +16,35 @@ pub fn report() -> ModuleReport {
             ),
         ],
         cases: vec![
-            CONSUMER_PROFILE_MATCHES_REQUIRED_ATTRIBUTES_AS_A_SET.report_case(),
+            CONSUMER_PROFILE_PRESERVES_ATTRIBUTE_PRECEDENCE_WHILE_MATCHING_REQUIREMENTS
+                .report_case(),
             CONSUMER_PROFILE_REJECTS_DUPLICATE_ATTRIBUTES.report_case(),
             CONSUMER_PROFILE_REJECTS_DUPLICATE_ATTRIBUTES_ADDED_LATER.report_case(),
             LABEL_RESOLVES_MOST_SPECIFIC_CONSUMER_PROFILE_VALUE.report_case(),
             LABEL_FALLS_BACK_TO_DEFAULT.report_case(),
             LABEL_CAN_EXIST_WITHOUT_ID.report_case(),
-            LABEL_REJECTS_AMBIGUOUS_EQUAL_SPECIFICITY_MATCHES.report_case(),
+            LABEL_USES_CONSUMER_PROFILE_ORDER_FOR_EQUAL_SPECIFICITY.report_case(),
         ],
     }
 }
 
-pub const CONSUMER_PROFILE_MATCHES_REQUIRED_ATTRIBUTES_AS_A_SET: DescribedBehavior =
-    DescribedBehavior::new(
-        "consumer profile matches required attributes as a set",
-        "A consumer profile satisfies a required profile when it contains every required consumer attribute.",
-        consumer_profile_matches_required_attributes_as_a_set,
-    );
+pub const CONSUMER_PROFILE_PRESERVES_ATTRIBUTE_PRECEDENCE_WHILE_MATCHING_REQUIREMENTS:
+    DescribedBehavior = DescribedBehavior::new(
+    "consumer profile preserves attribute precedence while matching requirements",
+    "A consumer profile preserves authored attribute order for precedence while satisfying requirements by attribute membership.",
+    consumer_profile_preserves_attribute_precedence_while_matching_requirements,
+);
 
 #[test]
-fn consumer_profile_matches_required_attributes_as_a_set() {
+fn consumer_profile_preserves_attribute_precedence_while_matching_requirements() {
     let web = consumer_attribute_id("WEB");
     let delivery = consumer_attribute_id("DELIVERY");
     let spanish = consumer_attribute_id("SPANISH");
-    let active = ConsumerProfile::new([web.clone(), delivery.clone(), spanish]).unwrap();
-    let required = ConsumerProfile::new([web, delivery]).unwrap();
+    let active = ConsumerProfile::new([web.clone(), delivery.clone(), spanish.clone()]).unwrap();
+    let required = ConsumerProfile::new([delivery.clone(), web.clone()]).unwrap();
 
     assert!(active.contains_all(&required));
+    assert_eq!(active.attributes(), &[web, delivery, spanish]);
 }
 
 pub const CONSUMER_PROFILE_REJECTS_DUPLICATE_ATTRIBUTES: DescribedBehavior = DescribedBehavior::new(
@@ -153,33 +155,34 @@ fn label_can_exist_without_id() {
     assert_eq!(resolved.value(), "Custom sandwich");
 }
 
-pub const LABEL_REJECTS_AMBIGUOUS_EQUAL_SPECIFICITY_MATCHES: DescribedBehavior =
+pub const LABEL_USES_CONSUMER_PROFILE_ORDER_FOR_EQUAL_SPECIFICITY: DescribedBehavior =
     DescribedBehavior::new(
-        "label rejects ambiguous equal specificity matches",
-        "A label resolution with two equally specific matching values is invalid rather than order-dependent.",
-        label_rejects_ambiguous_equal_specificity_matches,
+        "label uses consumer profile order for equal specificity",
+        "When equally specific label values match, the value containing the earliest differing attribute in the active consumer profile wins.",
+        label_uses_consumer_profile_order_for_equal_specificity,
     );
 
 #[test]
-fn label_rejects_ambiguous_equal_specificity_matches() {
-    let web = consumer_attribute_id("WEB");
-    let delivery = consumer_attribute_id("DELIVERY");
+fn label_uses_consumer_profile_order_for_equal_specificity() {
+    let kds = consumer_attribute_id("KDS");
     let spanish = consumer_attribute_id("SPANISH");
     let label = Label::new(label_id("PEPPERONI"), "Pepperoni")
         .unwrap()
-        .with_value(
-            ConsumerProfile::new([web.clone(), delivery.clone()]).unwrap(),
-            "Delivery",
-        )
+        .with_value(ConsumerProfile::new([kds.clone()]).unwrap(), "PEPPERONI")
         .unwrap()
         .with_value(
-            ConsumerProfile::new([web.clone(), spanish.clone()]).unwrap(),
-            "Spanish",
+            ConsumerProfile::new([spanish.clone()]).unwrap(),
+            "Pepperoni en español",
         )
         .unwrap();
 
-    assert!(matches!(
-        label.resolve(&ConsumerProfile::new([web, delivery, spanish]).unwrap()),
-        Err(LabelError::AmbiguousResolution { specificity: 2, .. })
-    ));
+    let kds_first = label
+        .resolve(&ConsumerProfile::new([kds.clone(), spanish.clone()]).unwrap())
+        .unwrap();
+    let spanish_first = label
+        .resolve(&ConsumerProfile::new([spanish, kds]).unwrap())
+        .unwrap();
+
+    assert_eq!(kds_first.value(), "PEPPERONI");
+    assert_eq!(spanish_first.value(), "Pepperoni en español");
 }

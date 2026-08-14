@@ -81,11 +81,11 @@ impl Media {
     }
 
     pub fn add_variant(&mut self, variant: MediaVariant) -> Result<(), MediaError> {
-        if self
-            .variants
-            .iter()
-            .any(|existing| existing.required_profile() == variant.required_profile())
-        {
+        if self.variants.iter().any(|existing| {
+            existing
+                .required_profile()
+                .has_same_attributes(variant.required_profile())
+        }) {
             return Err(MediaError::DuplicateVariantProfile {
                 media_id: self.media_id.clone(),
                 profile: variant.required_profile().clone(),
@@ -162,7 +162,12 @@ impl Media {
         {
             let specificity = variant.required_profile().len();
 
-            match best.map(|current| specificity.cmp(&current.required_profile().len())) {
+            match best.map(|current| {
+                consumer_profile.compare_matching_precedence(
+                    variant.required_profile(),
+                    current.required_profile(),
+                )
+            }) {
                 None | Some(std::cmp::Ordering::Greater) => {
                     best = Some(variant);
                     ambiguous_specificity = None;

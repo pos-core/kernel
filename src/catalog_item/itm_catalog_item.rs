@@ -9,6 +9,7 @@ use crate::modifier::{
 use crate::primitives::consumer::ConsumerProfile;
 use crate::primitives::ids::{CatalogItemId, LabelId, VariantId};
 use crate::primitives::label::{Label, LabelError, ResolvedLabel};
+use crate::primitives::media::MediaCollection;
 use crate::primitives::money::{Money, MoneyError};
 use crate::primitives::time::EvaluationTime;
 
@@ -17,6 +18,8 @@ use crate::primitives::time::EvaluationTime;
 pub struct CatalogItem {
     catalog_item_id: CatalogItemId,
     label: Label,
+    description: Option<Label>,
+    media: MediaCollection,
     variants: Vec<Variant>,
     modifiers: Modifiers,
     pricing_policy: ModifierPricingPolicy,
@@ -92,6 +95,8 @@ impl CatalogItem {
         Ok(Self {
             catalog_item_id,
             label,
+            description: None,
+            media: MediaCollection::empty(),
             variants,
             modifiers,
             pricing_policy,
@@ -110,8 +115,41 @@ impl CatalogItem {
         &self.label
     }
 
+    pub fn with_description(mut self, description: Label) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    pub fn with_media(mut self, media: MediaCollection) -> Self {
+        self.media = media;
+        self
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_ref().map(Label::default_text)
+    }
+
+    pub fn description_label(&self) -> Option<&Label> {
+        self.description.as_ref()
+    }
+
+    pub fn media(&self) -> &MediaCollection {
+        &self.media
+    }
+
     pub fn variants(&self) -> &[Variant] {
         &self.variants
+    }
+
+    pub fn default_variant_id(&self) -> Option<&VariantId> {
+        self.default_variant().map(Variant::variant_id)
+    }
+
+    pub fn default_variant(&self) -> Option<&Variant> {
+        self.variants
+            .iter()
+            .find(|variant| variant.is_default())
+            .or_else(|| (self.variants.len() == 1).then(|| &self.variants[0]))
     }
 
     pub fn modifiers(&self) -> &Modifiers {
@@ -126,6 +164,47 @@ impl CatalogItem {
         self.variants
             .iter()
             .find(|variant| variant.variant_id() == variant_id)
+    }
+
+    pub fn configure(
+        &self,
+        selections: &Selections,
+    ) -> Result<ConfiguredCatalogItem, CatalogItemError> {
+        self.configure_variant(self.implicit_variant_id()?, selections)
+    }
+
+    pub fn configure_at(
+        &self,
+        selections: &Selections,
+        evaluation_time: &EvaluationTime,
+    ) -> Result<ConfiguredCatalogItem, CatalogItemError> {
+        self.configure_variant_at(self.implicit_variant_id()?, selections, evaluation_time)
+    }
+
+    pub fn configure_for_profile(
+        &self,
+        selections: &Selections,
+        consumer_profile: &ConsumerProfile,
+    ) -> Result<ConfiguredCatalogItem, CatalogItemError> {
+        self.configure_variant_for_profile(
+            self.implicit_variant_id()?,
+            selections,
+            consumer_profile,
+        )
+    }
+
+    pub fn configure_for_profile_at(
+        &self,
+        selections: &Selections,
+        consumer_profile: &ConsumerProfile,
+        evaluation_time: &EvaluationTime,
+    ) -> Result<ConfiguredCatalogItem, CatalogItemError> {
+        self.configure_variant_for_profile_at(
+            self.implicit_variant_id()?,
+            selections,
+            consumer_profile,
+            evaluation_time,
+        )
     }
 
     pub fn configure_variant(
@@ -227,6 +306,12 @@ impl CatalogItem {
             total_price,
         })
     }
+
+    fn implicit_variant_id(&self) -> Result<&VariantId, CatalogItemError> {
+        self.default_variant()
+            .map(Variant::variant_id)
+            .ok_or_else(|| CatalogItemError::VariantSelectionRequired(self.catalog_item_id.clone()))
+    }
 }
 
 #[doc = include_str!("variant.md")]
@@ -234,6 +319,9 @@ impl CatalogItem {
 pub struct Variant {
     variant_id: VariantId,
     label: Option<Label>,
+    description: Option<Label>,
+    media: MediaCollection,
+    is_default: bool,
     invariant_price: Money,
     effects: Vec<Effect>,
     modifier_applicability: ModifierApplicability,
@@ -286,6 +374,9 @@ impl Variant {
         Ok(Self {
             variant_id,
             label,
+            description: None,
+            media: MediaCollection::empty(),
+            is_default: false,
             invariant_price,
             effects,
             modifier_applicability: ModifierApplicability::all(),
@@ -300,6 +391,21 @@ impl Variant {
         self
     }
 
+    pub fn with_default(mut self) -> Self {
+        self.is_default = true;
+        self
+    }
+
+    pub fn with_description(mut self, description: Label) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    pub fn with_media(mut self, media: MediaCollection) -> Self {
+        self.media = media;
+        self
+    }
+
     pub fn variant_id(&self) -> &VariantId {
         &self.variant_id
     }
@@ -310,6 +416,22 @@ impl Variant {
 
     pub fn label(&self) -> Option<&Label> {
         self.label.as_ref()
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_ref().map(Label::default_text)
+    }
+
+    pub fn description_label(&self) -> Option<&Label> {
+        self.description.as_ref()
+    }
+
+    pub fn media(&self) -> &MediaCollection {
+        &self.media
+    }
+
+    pub fn is_default(&self) -> bool {
+        self.is_default
     }
 
     pub fn invariant_price(&self) -> &Money {
@@ -401,6 +523,8 @@ pub enum CatalogItemError {
     UnlabeledVariantRequiresSingleVariant(VariantId),
     DuplicateVariant(VariantId),
     VariantCurrencyMismatch { left: VariantId, right: VariantId },
+    MultipleDefaultVariants { left: VariantId, right: VariantId },
+    VariantSelectionRequired(CatalogItemId),
     UnknownVariant(VariantId),
     Modifier(ModifierError),
     Label(LabelError),
@@ -430,6 +554,14 @@ impl fmt::Display for CatalogItemError {
                 f,
                 "variant `{left}` and variant `{right}` must use the same currency"
             ),
+            Self::MultipleDefaultVariants { left, right } => write!(
+                f,
+                "variant `{left}` and variant `{right}` cannot both be the default"
+            ),
+            Self::VariantSelectionRequired(catalog_item_id) => write!(
+                f,
+                "catalog item `{catalog_item_id}` requires an explicit variant selection"
+            ),
             Self::UnknownVariant(variant_id) => write!(f, "unknown variant `{variant_id}`"),
             Self::Modifier(error) => write!(f, "{error}"),
             Self::Label(error) => write!(f, "{error}"),
@@ -448,6 +580,7 @@ impl From<LabelError> for CatalogItemError {
 
 fn validate_variants(variants: &[Variant]) -> Result<(), CatalogItemError> {
     let mut variant_ids = BTreeSet::new();
+    let mut default_variant_id = None;
     let labels_are_required = variants.len() > 1;
     let first_variant = variants
         .first()
@@ -464,6 +597,17 @@ fn validate_variants(variants: &[Variant]) -> Result<(), CatalogItemError> {
             return Err(CatalogItemError::DuplicateVariant(
                 variant.variant_id.clone(),
             ));
+        }
+
+        if variant.is_default {
+            if let Some(left) = default_variant_id {
+                return Err(CatalogItemError::MultipleDefaultVariants {
+                    left,
+                    right: variant.variant_id.clone(),
+                });
+            }
+
+            default_variant_id = Some(variant.variant_id.clone());
         }
 
         if variant.invariant_price.currency() != first_variant.invariant_price.currency() {
