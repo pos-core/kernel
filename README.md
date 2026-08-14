@@ -32,7 +32,7 @@ Examples:
 - `ids/ent_entry_id.rs`: `ENT-...`
 - `ids/itm_catalog_item_id.rs`: `ITM-...`
 - `ids/var_variant_id.rs`: `VAR-...`
-- `catalog_item/itm_catalog_item.rs`: resolved catalog items and variants
+- `catalog_item/itm_catalog_item.rs`: variant dimensions, matches, and configured catalog items
 - `order/ord_order.rs`: order aggregate and order events
 - `entry/ent_entry.rs`: generic descriptive order entries
 - `modifier/mod_definition.rs`: `Modifiers -> Prompt -> Choice -> Modifiers`

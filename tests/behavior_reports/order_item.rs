@@ -18,7 +18,7 @@ pub fn report() -> ModuleReport {
         ],
         cases: vec![
             CATALOG_BACKED_ORDER_ITEM_PRESERVES_CONFIGURED_CATALOG_FACTS.report_case(),
-            ORDER_ITEM_OMITS_VARIANT_DESCRIPTION_FOR_UNLABELED_SINGLE_VARIANT.report_case(),
+            EMPTY_VARIANT_MATCH_DOES_NOT_DUPLICATE_ITEM_DESCRIPTION.report_case(),
             UNCONNECTED_ORDER_ITEM_SUPPORTS_NONE_IDS_DOWN_TO_MODIFIERS.report_case(),
             ORDER_ITEM_EXPANDS_TO_BASE_AND_MODIFIER_ENTRIES.report_case(),
             ORDER_ITEM_REJECTS_ZERO_QUANTITY_AND_WRONG_MODIFIER_ENTRY_ID_COUNT.report_case(),
@@ -28,7 +28,7 @@ pub fn report() -> ModuleReport {
 pub const CATALOG_BACKED_ORDER_ITEM_PRESERVES_CONFIGURED_CATALOG_FACTS: DescribedBehavior =
     DescribedBehavior::new(
         "catalog-backed order item preserves configured catalog facts",
-        "A catalog-backed order item preserves item and variant labels, effects, its order-item modifier snapshot, unit prices, and total price.",
+        "A catalog-backed order item preserves item, exact match, and component variant labels, effects, its order-item modifier snapshot, unit prices, and total price.",
         catalog_backed_order_item_preserves_configured_catalog_facts,
     );
 
@@ -52,11 +52,21 @@ fn catalog_backed_order_item_preserves_configured_catalog_facts() {
         order_item.catalog_item_label().label_id(),
         Some(&label_id("01PIZZA-TITLE"))
     );
-    assert_eq!(order_item.variant_id(), Some(&variant_id("01LARGE-THIN")));
     assert_eq!(
-        order_item.variant_label().unwrap().default_text(),
+        order_item.variant_ids(),
+        Some(&[variant_id("01LARGE"), variant_id("01THIN")][..])
+    );
+    assert_eq!(order_item.variant_labels()[0].default_text(), "Large");
+    assert_eq!(order_item.variant_labels()[1].default_text(), "Thin");
+    assert_eq!(
+        order_item.variant_match_label().unwrap().default_text(),
         "Large thin"
     );
+    assert_eq!(
+        order_item.variant_match_label().unwrap().label_id(),
+        Some(&label_id("01LARGE-THIN-TITLE"))
+    );
+    assert_eq!(order_item.variant_title(), Some("Large thin".to_owned()));
     assert_eq!(order_item.quantity(), 2);
     assert_eq!(order_item.invariant_unit_price().amount_minor(), 1800);
     assert_eq!(order_item.modifier_unit_price().amount_minor(), 100);
@@ -78,24 +88,24 @@ fn catalog_backed_order_item_preserves_configured_catalog_facts() {
     assert_eq!(contribution.amount().amount_minor(), 100);
 }
 
-pub const ORDER_ITEM_OMITS_VARIANT_DESCRIPTION_FOR_UNLABELED_SINGLE_VARIANT: DescribedBehavior =
+pub const EMPTY_VARIANT_MATCH_DOES_NOT_DUPLICATE_ITEM_DESCRIPTION: DescribedBehavior =
     DescribedBehavior::new(
-        "unlabeled single variant does not duplicate the item description",
-        "A catalog-backed order item preserves the sole variant ID and price while rendering only the catalog item label when that variant has no label.",
-        order_item_omits_variant_description_for_unlabeled_single_variant,
+        "empty variant match does not duplicate the item description",
+        "A catalog-backed order item preserves the empty concrete match and its price while rendering only the catalog item label when the item has no dimensions.",
+        empty_variant_match_does_not_duplicate_item_description,
     );
 
 #[test]
-fn order_item_omits_variant_description_for_unlabeled_single_variant() {
-    let variant_id = variant_id("01STANDARD");
+fn empty_variant_match_does_not_duplicate_item_description() {
     let configured = CatalogItem::new(
         catalog_item_id("01CHIPS"),
         "Bag of chips",
-        vec![Variant::without_label(variant_id.clone(), usd(199), Vec::new()).unwrap()],
+        Vec::new(),
+        vec![VariantMatch::new(Vec::new(), usd(199), Vec::new()).unwrap()],
         Modifiers::new(Vec::new()),
     )
     .unwrap()
-    .configure_variant(&variant_id, &Selections::new())
+    .configure(&Selections::new())
     .unwrap();
     let order_item = OrderItem::from_configured_catalog_item(
         order_item_id("01CHIPSITEM"),
@@ -105,8 +115,9 @@ fn order_item_omits_variant_description_for_unlabeled_single_variant() {
     )
     .unwrap();
 
-    assert_eq!(order_item.variant_id(), Some(&variant_id));
-    assert_eq!(order_item.variant_label(), None);
+    assert_eq!(order_item.variant_ids(), Some(&[][..]));
+    assert!(order_item.variant_labels().is_empty());
+    assert_eq!(order_item.variant_title(), None);
     assert_eq!(order_item.description(), "Bag of chips");
     assert_eq!(order_item.unit_price().amount_minor(), 199);
 
@@ -174,8 +185,9 @@ fn unconnected_order_item_supports_none_ids_down_to_modifiers() {
     assert_eq!(order_item.catalog_version_id(), None);
     assert_eq!(order_item.catalog_item_id(), None);
     assert_eq!(order_item.item_label().label_id(), None);
-    assert_eq!(order_item.variant_id(), None);
-    assert_eq!(order_item.variant_label(), None);
+    assert_eq!(order_item.variant_ids(), None);
+    assert!(order_item.variant_labels().is_empty());
+    assert_eq!(order_item.variant_title(), None);
     assert_eq!(order_item.modifier_unit_price().amount_minor(), 50);
     assert_eq!(order_item.unit_price().amount_minor(), 1050);
 
@@ -237,7 +249,7 @@ fn order_item_expands_to_base_and_modifier_entries() {
         &EntrySource::CatalogItem {
             catalog_version_id: catalog_version_id("01CATALOGVERSION"),
             catalog_item_id: catalog_item_id("01PIZZA"),
-            variant_id: variant_id("01LARGE-THIN"),
+            variant_ids: vec![variant_id("01LARGE"), variant_id("01THIN")],
         }
     );
 
@@ -309,7 +321,7 @@ fn configured_pizza() -> ConfiguredCatalogItem {
     );
 
     pizza_catalog_item()
-        .configure_variant(&variant_id("01LARGE-THIN"), &selections)
+        .configure_variants(&[variant_id("01LARGE"), variant_id("01THIN")], &selections)
         .unwrap()
 }
 
@@ -317,20 +329,34 @@ fn pizza_catalog_item() -> CatalogItem {
     CatalogItem::new(
         catalog_item_id("01PIZZA"),
         "Pizza",
-        vec![large_pizza_variant()],
+        vec![
+            VariantDimension::new(
+                variant_dimension_id("01SIZE"),
+                "Size",
+                vec![Variant::new(variant_id("01LARGE"), "Large").unwrap()],
+            )
+            .unwrap(),
+            VariantDimension::new(
+                variant_dimension_id("01CRUST"),
+                "Crust",
+                vec![Variant::new(variant_id("01THIN"), "Thin").unwrap()],
+            )
+            .unwrap(),
+        ],
+        vec![large_pizza_match()],
         pizza_modifiers(),
     )
     .unwrap()
 }
 
-fn large_pizza_variant() -> Variant {
-    Variant::new(
-        variant_id("01LARGE-THIN"),
-        "Large thin",
+fn large_pizza_match() -> VariantMatch {
+    VariantMatch::new(
+        vec![variant_id("01LARGE"), variant_id("01THIN")],
         usd(1800),
         vec![variant_effect("large-thin")],
     )
     .unwrap()
+    .with_label(Label::new(label_id("01LARGE-THIN-TITLE"), "Large thin").unwrap())
 }
 
 fn pizza_modifiers() -> Modifiers {
@@ -413,6 +439,10 @@ fn catalog_item_id(suffix: &str) -> CatalogItemId {
 
 fn variant_id(suffix: &str) -> VariantId {
     VariantId::from_suffix(suffix).unwrap()
+}
+
+fn variant_dimension_id(suffix: &str) -> VariantDimensionId {
+    VariantDimensionId::from_suffix(suffix).unwrap()
 }
 
 fn component_id(suffix: &str) -> ComponentId {

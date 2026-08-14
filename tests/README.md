@@ -13,14 +13,14 @@ Each behavior consists of three colocated parts:
 Example:
 
 ```rust
-pub const SOLE_VARIANT_MAY_BE_UNLABELED: DescribedBehavior = DescribedBehavior::new(
-    "sole variant may be unlabeled",
-    "A catalog item may use one unlabeled priced variant...",
-    sole_variant_may_be_unlabeled,
+pub const DEEPEST_MATCH_USES_ONLY_ITS_OWN_EXPLICIT_PRICE: DescribedBehavior = DescribedBehavior::new(
+    "deepest match uses only its own explicit price",
+    "Every match owns a required price...",
+    deepest_match_uses_only_its_own_explicit_price,
 );
 
 #[test]
-fn sole_variant_may_be_unlabeled() {
+fn deepest_match_uses_only_its_own_explicit_price() {
     // Assertions define the behavior contract.
 }
 ```

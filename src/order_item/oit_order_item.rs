@@ -19,7 +19,8 @@ pub struct OrderItem {
     order_item_id: OrderItemId,
     source: OrderItemSource,
     item_label: Label,
-    variant_label: Option<Label>,
+    variant_match_label: Option<Label>,
+    variant_labels: Vec<Label>,
     quantity: u32,
     invariant_unit_price: Money,
     modifier_unit_price: Money,
@@ -46,10 +47,11 @@ impl OrderItem {
             OrderItemSource::Catalog {
                 catalog_version_id,
                 catalog_item_id: configured.catalog_item_id().clone(),
-                variant_id: configured.variant_id().clone(),
+                variant_ids: configured.variant_ids().to_vec(),
             },
             configured.catalog_item_label_definition().clone(),
-            configured.variant_label_definition().cloned(),
+            configured.variant_match_label_definition().cloned(),
+            configured.variant_label_definitions().to_vec(),
             quantity,
             configured.invariant_price().clone(),
             OrderItemModifierSnapshot::from_configuration_snapshot(&modifiers)?,
@@ -70,6 +72,7 @@ impl OrderItem {
             OrderItemSource::Manual,
             item_label,
             variant_label,
+            Vec::new(),
             quantity,
             invariant_unit_price,
             modifiers,
@@ -81,7 +84,8 @@ impl OrderItem {
         order_item_id: OrderItemId,
         source: OrderItemSource,
         item_label: Label,
-        variant_label: Option<Label>,
+        variant_match_label: Option<Label>,
+        variant_labels: Vec<Label>,
         quantity: u32,
         invariant_unit_price: Money,
         modifiers: OrderItemModifierSnapshot,
@@ -103,7 +107,8 @@ impl OrderItem {
             order_item_id,
             source,
             item_label,
-            variant_label,
+            variant_match_label,
+            variant_labels,
             quantity,
             invariant_unit_price,
             modifier_unit_price,
@@ -148,24 +153,38 @@ impl OrderItem {
         &self.item_label
     }
 
-    pub fn variant_id(&self) -> Option<&VariantId> {
+    pub fn variant_ids(&self) -> Option<&[VariantId]> {
         match &self.source {
-            OrderItemSource::Catalog { variant_id, .. } => Some(variant_id),
+            OrderItemSource::Catalog { variant_ids, .. } => Some(variant_ids),
             OrderItemSource::External { .. } | OrderItemSource::Manual => None,
         }
     }
 
-    pub fn variant_label(&self) -> Option<&Label> {
-        self.variant_label.as_ref()
+    pub fn variant_labels(&self) -> &[Label] {
+        &self.variant_labels
+    }
+
+    pub fn variant_match_label(&self) -> Option<&Label> {
+        self.variant_match_label.as_ref()
+    }
+
+    pub fn variant_title(&self) -> Option<String> {
+        if let Some(label) = &self.variant_match_label {
+            return Some(label.default_text().to_owned());
+        }
+
+        (!self.variant_labels.is_empty()).then(|| {
+            self.variant_labels
+                .iter()
+                .map(Label::default_text)
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
     }
 
     pub fn description(&self) -> String {
-        if let Some(variant_label) = &self.variant_label {
-            format!(
-                "{} ({})",
-                self.item_label.default_text(),
-                variant_label.default_text()
-            )
+        if let Some(variant_title) = self.variant_title() {
+            format!("{} ({})", self.item_label.default_text(), variant_title)
         } else {
             self.item_label.default_text().to_owned()
         }
@@ -252,11 +271,11 @@ impl OrderItem {
             OrderItemSource::Catalog {
                 catalog_version_id,
                 catalog_item_id,
-                variant_id,
+                variant_ids,
             } => EntrySource::CatalogItem {
                 catalog_version_id: catalog_version_id.clone(),
                 catalog_item_id: catalog_item_id.clone(),
-                variant_id: variant_id.clone(),
+                variant_ids: variant_ids.clone(),
             },
             OrderItemSource::External {
                 system,
@@ -302,7 +321,7 @@ pub enum OrderItemSource {
     Catalog {
         catalog_version_id: CatalogVersionId,
         catalog_item_id: CatalogItemId,
-        variant_id: VariantId,
+        variant_ids: Vec<VariantId>,
     },
     External {
         system: String,

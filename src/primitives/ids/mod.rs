@@ -31,6 +31,7 @@ mod sur_surface_id;
 mod txn_transaction_id;
 mod usr_user_id;
 mod var_variant_id;
+mod vdm_variant_dimension_id;
 
 pub use act_actor_id::ActorId;
 pub use alc_allocation_id::AllocationId;
@@ -65,6 +66,7 @@ pub use sur_surface_id::SurfaceId;
 pub use txn_transaction_id::TransactionId;
 pub use usr_user_id::UserId;
 pub use var_variant_id::VariantId;
+pub use vdm_variant_dimension_id::VariantDimensionId;
 
 macro_rules! define_prefixed_id {
     ($name:ident, $prefix:literal) => {

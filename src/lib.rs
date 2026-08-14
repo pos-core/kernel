@@ -18,7 +18,10 @@ pub mod totals;
 
 pub mod prelude {
     pub use crate::actor::{ActorContext, ActorKind};
-    pub use crate::catalog_item::{CatalogItem, CatalogItemError, ConfiguredCatalogItem, Variant};
+    pub use crate::catalog_item::{
+        CatalogItem, CatalogItemError, ConfiguredCatalogItem, Variant, VariantDimension,
+        VariantMatch, VariantSettings,
+    };
     pub use crate::effect::{
         Effect, EffectDomain, EffectPayload, EffectRequirement, EffectSource, EffectTarget,
     };
@@ -52,7 +55,7 @@ pub mod prelude {
         ClientOperationId, CommandId, ComponentId, ComponentVersionId, ConsumerAttributeId,
         CustomerId, DeviceId, EdgeId, EntryId, EventId, FulfillmentModeId, LabelId, MediaId,
         MerchantId, OrderId, OrderItemId, PaymentId, PermissionId, RoleId, SupplyClaimId,
-        SurfaceId, TransactionId, UserId, VariantId,
+        SurfaceId, TransactionId, UserId, VariantDimensionId, VariantId,
     };
     pub use crate::primitives::label::{Label, LabelError, LabelValue, ResolvedLabel};
     pub use crate::primitives::media::{

@@ -157,7 +157,7 @@ pub enum EntrySource {
     CatalogItem {
         catalog_version_id: CatalogVersionId,
         catalog_item_id: CatalogItemId,
-        variant_id: VariantId,
+        variant_ids: Vec<VariantId>,
     },
     Catalog {
         catalog_version_id: CatalogVersionId,

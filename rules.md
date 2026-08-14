@@ -34,12 +34,21 @@ This file is the hard operating agreement for POS Core Kernel. It should stay st
 - Catalog definitions should not store raw display strings directly on items, variants, prompts, choices, fields, categories, buttons, receipt text, prep text, or customer-facing text.
 - Labels may have stable IDs so catalog-authored strings can support translations, consumer-specific variants, and historical snapshots.
 - Custom/manual order labels use the same `Label` primitive with no ID.
-- A catalog item must have at least one priced variant. Its sole variant may omit a label because there is no user-facing distinction to select; when multiple variants exist, every variant requires a label.
-- Catalog items and variants may independently own optional label-backed descriptions.
-- Catalog-item and variant descriptions are catalog presentation metadata and are excluded from configuration and order snapshots.
-- A sole variant is always its catalog item's effective default without requiring a marker.
-- With multiple variants, one variant may mark itself as the optional explicit default. A catalog item may contain at most one marker, and removing that variant removes the explicit default with it.
-- Catalog-item and variant media are independent and optional, each represented by an ordered `MediaCollection` allowing zero or more media definitions.
+- A catalog item owns ordered variant dimensions; dimension order controls selection presentation and combined-label order but does not require every concrete selection to use every dimension.
+- Every variant value belongs to one dimension and has a required label.
+- Authored variant matches are unordered sets of variant IDs. The catalog stores each set in dimension order and rejects two values from the same dimension.
+- A match is deepest when no authored match is its strict superset. Only deepest matches are concrete selectable configurations.
+- Every variant match owns a required explicit invariant price. Prices do not inherit between matches, and configuration uses only the selected deepest match's own price.
+- The catalog-item variant setting `allow_free_variant` defaults to false. A zero-priced deepest match is invalid unless the setting is explicitly enabled.
+- A catalog item with no dimensions uses one empty deepest match so a simple item has a required configuration and price without an unnamed variant value.
+- Catalog items and variant values may independently own optional label-backed descriptions and media.
+- Variant matches may independently own an optional exact label, optional label-backed description, and optional media.
+- An exact match label overrides the derived combined display label without erasing the selected component labels.
+- Description and media never inherit or merge across catalog-item, variant-value, and variant-match scopes inside the kernel.
+- Catalog-item, variant-value, and match descriptions and media are catalog presentation metadata and are excluded from configuration and order snapshots.
+- A sole deepest match is always its catalog item's effective default without requiring a marker.
+- With multiple deepest matches, one match may carry the optional explicit default marker. A catalog item may contain at most one marker, and removing that match removes the explicit default with it.
+- Catalog-item, variant-value, and variant-match media are independent and optional, each represented by an ordered `MediaCollection` allowing zero or more media definitions.
 - Media fallback and precedence across catalog definitions are client presentation concerns; the kernel exposes collections without combining them.
 - Structural strings such as typed IDs, standard kinds, currency codes, and internal enum names are not labels.
 - Labels resolve against a `ConsumerProfile`, which is an ordered list of unique generic `ConsumerAttribute` IDs.
