@@ -57,7 +57,7 @@ Modifiers
 
 `Prompt` is one selectable question with a title and optional description. It owns `min_select`, `max_select`, defaults, and the list of available choices.
 
-`Choice` is one selectable answer with a title. A choice may have effects and may reveal nested modifiers.
+`Choice` is one selectable answer with a title. A choice may have effects, collect authored text inputs, and reveal nested modifiers. Choice quantity represents count; a text input may be collected once for the choice selection or once per selected unit.
 
 Effects remain separate from modifiers. A choice can emit effects, but modifiers do not need to know how price, stock, prep, tax, or reporting effects are consumed.
 

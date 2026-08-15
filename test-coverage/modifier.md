@@ -1,10 +1,11 @@
 # Modifier
 
-Described behavior tests for prompts, choices, rules, hydration, dehydration, and pricing.
+Described behavior tests for prompts, choices, choice inputs, rules, hydration, dehydration, and pricing.
 
 ## Definitions
 
 - [Modifier definitions](../src/modifier/modifiers.md)
+- [Choice inputs](../src/modifier/choice-inputs.md)
 - [Selections](../src/modifier/selections.md)
 - [Configuration](../src/modifier/configuration.md)
 - [Configuration snapshot](../src/modifier/configuration-snapshot.md)
@@ -13,8 +14,8 @@ Described behavior tests for prompts, choices, rules, hydration, dehydration, an
 ## Result
 
 - Generated: 2026-05-22 12:29:37 UTC
-- Total cases: 35
-- Passed: 35
+- Total cases: 37
+- Passed: 37
 - Failed: 0
 
 ## Behaviors
@@ -33,6 +34,8 @@ Described behavior tests for prompts, choices, rules, hydration, dehydration, an
 | scheduled choice is not visible outside its schedule | A scheduled choice is filtered from visible modifier traversal when EvaluationTime falls outside its schedule. | Passed | 0 ms |
 | scheduled default choice uses supplied evaluation time | A scheduled default choice requires EvaluationTime and only defaults when its schedule includes that time. | Passed | 0 ms |
 | choice rules apply to selected choice quantity | Choice-level Min and Max rules validate the selected count on that choice. | Passed | 0 ms |
+| choice inputs collect once or once per selected unit and round trip | A selected choice can collect one text value for the whole selection and ordered text values for individual units, preserving them through hydration, effective selections, and configuration snapshots. | Passed | 0 ms |
+| choice inputs reject invalid definitions and values | Choice input authoring requires labels, coherent length bounds, and unique IDs; hydration enforces known inputs, once-versus-per-unit occurrence, required values, and character-length limits. | Passed | 0 ms |
 | choice default rules are unique nonzero and within choice bounds | A choice default must be unique, greater than zero, and valid against the choice's own Min and Max rules. | Passed | 0 ms |
 | duplicate choice selections are rejected even with different nested selections | A prompt cannot select the same choice ID twice; distinct configuration must be modeled below the selected choice. | Passed | 0 ms |
 | prompt rejects zero duplicate and unknown choice selections | Prompt validation rejects zero counts, repeated choice IDs, and choice IDs that do not exist under the prompt. | Passed | 0 ms |

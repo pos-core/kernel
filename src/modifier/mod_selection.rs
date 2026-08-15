@@ -96,6 +96,7 @@ pub struct ChoiceSelection {
     choice_id: ComponentId,
     quantity: u32,
     source: SelectionSource,
+    inputs: Vec<ChoiceInputValue>,
     modifiers: Option<Box<Selections>>,
 }
 
@@ -105,6 +106,7 @@ impl ChoiceSelection {
             choice_id,
             quantity,
             source: SelectionSource::Explicit,
+            inputs: Vec::new(),
             modifiers: None,
         }
     }
@@ -116,6 +118,11 @@ impl ChoiceSelection {
 
     pub fn with_modifiers(mut self, modifiers: Selections) -> Self {
         self.modifiers = Some(Box::new(modifiers));
+        self
+    }
+
+    pub fn with_inputs(mut self, inputs: Vec<ChoiceInputValue>) -> Self {
+        self.inputs = inputs;
         self
     }
 
@@ -131,8 +138,49 @@ impl ChoiceSelection {
         self.source
     }
 
+    pub fn inputs(&self) -> &[ChoiceInputValue] {
+        &self.inputs
+    }
+
     pub fn modifiers(&self) -> Option<&Selections> {
         self.modifiers.as_deref()
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ChoiceInputValue {
+    input_id: ComponentId,
+    unit: Option<u32>,
+    value: String,
+}
+
+impl ChoiceInputValue {
+    pub fn once(input_id: ComponentId, value: impl Into<String>) -> Self {
+        Self {
+            input_id,
+            unit: None,
+            value: value.into(),
+        }
+    }
+
+    pub fn for_unit(input_id: ComponentId, unit: u32, value: impl Into<String>) -> Self {
+        Self {
+            input_id,
+            unit: Some(unit),
+            value: value.into(),
+        }
+    }
+
+    pub fn input_id(&self) -> &ComponentId {
+        &self.input_id
+    }
+
+    pub fn unit(&self) -> Option<u32> {
+        self.unit
+    }
+
+    pub fn value(&self) -> &str {
+        &self.value
     }
 }
 
@@ -147,4 +195,5 @@ pub(super) struct SelectionCandidate {
     pub(super) choice_id: ComponentId,
     pub(super) quantity: u32,
     pub(super) source: SelectionSource,
+    pub(super) inputs: Vec<ChoiceInputValue>,
 }

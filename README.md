@@ -35,7 +35,7 @@ Examples:
 - `catalog_item/itm_catalog_item.rs`: variant dimensions, matches, and configured catalog items
 - `order/ord_order.rs`: order aggregate and order events
 - `entry/ent_entry.rs`: generic descriptive order entries
-- `modifier/mod_definition.rs`: `Modifiers -> Prompt -> Choice -> Modifiers`
+- `modifier/mod_definition.rs`: `Modifiers -> Prompt -> Choice -> inputs / Modifiers`
 - `event/evt_event.rs`: event envelope
 - `totals/ttl_total.rs`: derived totals
 

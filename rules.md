@@ -134,7 +134,7 @@ Suggested rounding strategy names:
 - Entries snapshot human-readable and financial meaning when they are created.
 - An order must contain all state needed to represent itself.
 - An order may keep references to catalog, customer, actor, payment, or integration entities for traceability, but it must not require those references to render, price, refund, audit, or report what was ordered.
-- Catalog-backed order lines snapshot selected variants, modifier selections, labels, prices, price contributions, taxes, effects, and totals needed to explain the order.
+- Catalog-backed order lines snapshot selected variants, modifier selections, entered choice-input values, labels, prices, price contributions, taxes, effects, and totals needed to explain the order.
 - Changing catalog labels, defaults, modifier rules, prices, or deleted entities must not reinterpret an existing order.
 - Totals are derived from entries and allocations.
 - Financial accounting is append-only.

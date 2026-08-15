@@ -9,6 +9,7 @@ use crate::primitives::money::MoneyError;
 pub enum ModifierError {
     EmptyPromptTitle,
     EmptyChoiceTitle,
+    ChoiceInput(Box<ChoiceInputError>),
     DefaultRuleOnPrompt,
     InvalidConstraints {
         min_select: u32,
@@ -61,6 +62,7 @@ impl fmt::Display for ModifierError {
         match self {
             Self::EmptyPromptTitle => f.write_str("prompt title cannot be empty"),
             Self::EmptyChoiceTitle => f.write_str("choice title cannot be empty"),
+            Self::ChoiceInput(error) => write!(f, "{error}"),
             Self::DefaultRuleOnPrompt => {
                 f.write_str("default rules belong on choices, not prompts")
             }
@@ -154,6 +156,153 @@ impl fmt::Display for ModifierError {
 }
 
 impl std::error::Error for ModifierError {}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ChoiceInputError {
+    EmptyTitle,
+    InvalidLengthConstraints {
+        input_id: ComponentId,
+        min_length: u32,
+        max_length: u32,
+    },
+    DuplicateDefinition(ComponentId),
+    UnknownInput {
+        choice_id: ComponentId,
+        input_id: ComponentId,
+    },
+    UnexpectedUnit {
+        choice_id: ComponentId,
+        input_id: ComponentId,
+    },
+    UnitRequired {
+        choice_id: ComponentId,
+        input_id: ComponentId,
+    },
+    UnitOutOfRange {
+        choice_id: ComponentId,
+        input_id: ComponentId,
+        unit: u32,
+        quantity: u32,
+    },
+    DuplicateValue {
+        choice_id: ComponentId,
+        input_id: ComponentId,
+        unit: Option<u32>,
+    },
+    MissingRequiredValue {
+        choice_id: ComponentId,
+        input_id: ComponentId,
+        expected: u32,
+        actual: usize,
+    },
+    BelowMinimumLength {
+        choice_id: ComponentId,
+        input_id: ComponentId,
+        min_length: u32,
+        actual: usize,
+    },
+    AboveMaximumLength {
+        choice_id: ComponentId,
+        input_id: ComponentId,
+        max_length: u32,
+        actual: usize,
+    },
+}
+
+impl fmt::Display for ChoiceInputError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyTitle => f.write_str("choice input title cannot be empty"),
+            Self::InvalidLengthConstraints {
+                input_id,
+                min_length,
+                max_length,
+            } => write!(
+                f,
+                "choice input `{input_id}` length constraints are invalid: min {min_length} exceeds max {max_length}"
+            ),
+            Self::DuplicateDefinition(input_id) => {
+                write!(f, "duplicate choice input `{input_id}`")
+            }
+            Self::UnknownInput {
+                choice_id,
+                input_id,
+            } => write!(f, "choice `{choice_id}` does not define input `{input_id}`"),
+            Self::UnexpectedUnit {
+                choice_id,
+                input_id,
+            } => write!(
+                f,
+                "choice input `{input_id}` on choice `{choice_id}` is collected once and cannot identify a unit"
+            ),
+            Self::UnitRequired {
+                choice_id,
+                input_id,
+            } => write!(
+                f,
+                "choice input `{input_id}` on choice `{choice_id}` repeats per quantity and must identify a unit"
+            ),
+            Self::UnitOutOfRange {
+                choice_id,
+                input_id,
+                unit,
+                quantity,
+            } => write!(
+                f,
+                "choice input `{input_id}` unit {unit} is outside choice `{choice_id}` quantity {quantity}"
+            ),
+            Self::DuplicateValue {
+                choice_id,
+                input_id,
+                unit,
+            } => match unit {
+                Some(unit) => write!(
+                    f,
+                    "choice input `{input_id}` has duplicate value for choice `{choice_id}` unit {unit}"
+                ),
+                None => write!(
+                    f,
+                    "choice input `{input_id}` has duplicate value for choice `{choice_id}`"
+                ),
+            },
+            Self::MissingRequiredValue {
+                choice_id,
+                input_id,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "required choice input `{input_id}` on choice `{choice_id}` expected {expected} value(s), found {actual}"
+            ),
+            Self::BelowMinimumLength {
+                choice_id,
+                input_id,
+                min_length,
+                actual,
+            } => write!(
+                f,
+                "choice input `{input_id}` on choice `{choice_id}` length {actual} is below min {min_length}"
+            ),
+            Self::AboveMaximumLength {
+                choice_id,
+                input_id,
+                max_length,
+                actual,
+            } => write!(
+                f,
+                "choice input `{input_id}` on choice `{choice_id}` length {actual} exceeds max {max_length}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ChoiceInputError {}
+
+impl From<ChoiceInputError> for ModifierError {
+    fn from(error: ChoiceInputError) -> Self {
+        Self::ChoiceInput(Box::new(error))
+    }
+}
 
 impl From<LabelError> for ModifierError {
     fn from(error: LabelError) -> Self {

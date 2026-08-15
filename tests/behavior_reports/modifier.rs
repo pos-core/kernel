@@ -7,9 +7,10 @@ pub fn report() -> ModuleReport {
     ModuleReport {
         slug: "modifier",
         title: "Modifier",
-        description: "Described behavior tests for prompts, choices, rules, hydration, dehydration, and pricing.",
+        description: "Described behavior tests for prompts, choices, choice inputs, rules, hydration, dehydration, and pricing.",
         definitions: vec![
             DefinitionLink::new("Modifier definitions", "../src/modifier/modifiers.md"),
+            DefinitionLink::new("Choice inputs", "../src/modifier/choice-inputs.md"),
             DefinitionLink::new("Selections", "../src/modifier/selections.md"),
             DefinitionLink::new("Configuration", "../src/modifier/configuration.md"),
             DefinitionLink::new(
@@ -32,6 +33,8 @@ pub fn report() -> ModuleReport {
             SCHEDULED_CHOICE_IS_NOT_VISIBLE_OUTSIDE_ITS_SCHEDULE.report_case(),
             SCHEDULED_DEFAULT_CHOICE_USES_SUPPLIED_EVALUATION_TIME.report_case(),
             CHOICE_RULES_APPLY_TO_SELECTED_CHOICE_QUANTITY.report_case(),
+            CHOICE_INPUTS_COLLECT_ONCE_OR_ONCE_PER_SELECTED_UNIT_AND_ROUND_TRIP.report_case(),
+            CHOICE_INPUTS_REJECT_INVALID_DEFINITIONS_AND_VALUES.report_case(),
             CHOICE_DEFAULT_RULES_ARE_UNIQUE_NONZERO_AND_WITHIN_CHOICE_BOUNDS.report_case(),
             DUPLICATE_CHOICE_SELECTIONS_ARE_REJECTED_EVEN_WITH_DIFFERENT_NESTED_SELECTIONS
                 .report_case(),
@@ -601,6 +604,251 @@ fn choice_default_rules_are_unique_nonzero_and_within_choice_bounds() {
             max_select: 1,
             actual: 2
         })
+    );
+}
+
+pub const CHOICE_INPUTS_COLLECT_ONCE_OR_ONCE_PER_SELECTED_UNIT_AND_ROUND_TRIP: DescribedBehavior =
+    DescribedBehavior::new(
+        "choice inputs collect once or once per selected unit and round trip",
+        "A selected choice can collect one text value for the whole selection and ordered text values for individual units, preserving them through hydration, effective selections, and configuration snapshots.",
+        choice_inputs_collect_once_or_once_per_selected_unit_and_round_trip,
+    );
+
+#[test]
+fn choice_inputs_collect_once_or_once_per_selected_unit_and_round_trip() {
+    let prompt_id = component_id("01CUPCAKES");
+    let choice_id = component_id("01CUPCAKE");
+    let request_id = component_id("01REQUEST");
+    let name_id = component_id("01NAME");
+    let modifiers = Modifiers::new(vec![
+        Prompt::new(
+            prompt_id.clone(),
+            "How many cupcakes do you want?",
+            None,
+            vec![Rule::Min(1), Rule::Max(12)],
+            Vec::new(),
+            vec![
+                Choice::new(
+                    choice_id.clone(),
+                    "Cupcake",
+                    vec![Rule::Max(12)],
+                    Vec::new(),
+                )
+                .unwrap()
+                .with_inputs(vec![
+                    ChoiceInput::new(
+                        request_id.clone(),
+                        "Any special requests?",
+                        false,
+                        None,
+                        Some(100),
+                        false,
+                    )
+                    .unwrap(),
+                    ChoiceInput::new(name_id.clone(), "Name", true, Some(1), Some(50), true)
+                        .unwrap(),
+                ])
+                .unwrap(),
+            ],
+        )
+        .unwrap(),
+    ]);
+    let selections = Selections::new().with_prompt(
+        prompt_id.clone(),
+        vec![ChoiceSelection::new(choice_id, 3).with_inputs(vec![
+            ChoiceInputValue::for_unit(name_id.clone(), 2, "Bob"),
+            ChoiceInputValue::once(request_id.clone(), "Use blue frosting"),
+            ChoiceInputValue::for_unit(name_id.clone(), 1, "Alice"),
+            ChoiceInputValue::for_unit(name_id.clone(), 3, "Carol"),
+        ])],
+    );
+
+    let configuration = modifiers.hydrate(&selections).unwrap();
+    let inputs = configuration.prompt(&prompt_id).unwrap().choices()[0].inputs();
+
+    assert_eq!(inputs.len(), 4);
+    assert_eq!(inputs[0].input_id(), &request_id);
+    assert_eq!(inputs[0].title(), "Any special requests?");
+    assert_eq!(inputs[0].unit(), None);
+    assert_eq!(inputs[0].value(), "Use blue frosting");
+    assert_eq!(inputs[1].input_id(), &name_id);
+    assert_eq!(inputs[1].unit(), Some(1));
+    assert_eq!(inputs[1].value(), "Alice");
+    assert_eq!(inputs[2].unit(), Some(2));
+    assert_eq!(inputs[2].value(), "Bob");
+    assert_eq!(inputs[3].unit(), Some(3));
+    assert_eq!(inputs[3].value(), "Carol");
+
+    let effective = configuration.dehydrate();
+    assert_eq!(modifiers.hydrate(&effective).unwrap(), configuration);
+
+    let snapshot = configuration
+        .snapshot(&usd(0), ModifierPricingPolicy::default())
+        .unwrap();
+    let snapshotted_inputs = snapshot.prompt(&prompt_id).unwrap().choices()[0].inputs();
+    assert_eq!(snapshotted_inputs[0].title(), "Any special requests?");
+    assert_eq!(snapshotted_inputs[0].value(), "Use blue frosting");
+    assert_eq!(snapshotted_inputs[3].unit(), Some(3));
+    assert_eq!(snapshotted_inputs[3].value(), "Carol");
+}
+
+pub const CHOICE_INPUTS_REJECT_INVALID_DEFINITIONS_AND_VALUES: DescribedBehavior =
+    DescribedBehavior::new(
+        "choice inputs reject invalid definitions and values",
+        "Choice input authoring requires labels, coherent length bounds, and unique IDs; hydration enforces known inputs, once-versus-per-unit occurrence, required values, and character-length limits.",
+        choice_inputs_reject_invalid_definitions_and_values,
+    );
+
+#[test]
+fn choice_inputs_reject_invalid_definitions_and_values() {
+    let choice_id = component_id("01CUPCAKE");
+    let request_id = component_id("01REQUEST");
+    let name_id = component_id("01NAME");
+
+    assert_eq!(
+        ChoiceInput::new(component_id("01EMPTY"), " ", false, None, None, false,),
+        Err(choice_input_error(ChoiceInputError::EmptyTitle))
+    );
+    assert_eq!(
+        ChoiceInput::new(name_id.clone(), "Name", true, Some(5), Some(4), true,),
+        Err(choice_input_error(
+            ChoiceInputError::InvalidLengthConstraints {
+                input_id: name_id.clone(),
+                min_length: 5,
+                max_length: 4,
+            }
+        ))
+    );
+
+    let request = ChoiceInput::new(
+        request_id.clone(),
+        "Any special requests?",
+        false,
+        None,
+        Some(10),
+        false,
+    )
+    .unwrap();
+    let name = ChoiceInput::new(name_id.clone(), "Name", true, Some(1), Some(5), true).unwrap();
+
+    assert_eq!(
+        Choice::new(choice_id.clone(), "Cupcake", Vec::new(), Vec::new())
+            .unwrap()
+            .with_inputs(vec![request.clone(), request.clone()]),
+        Err(choice_input_error(ChoiceInputError::DuplicateDefinition(
+            request_id.clone()
+        )))
+    );
+    let prompt = Prompt::new(
+        component_id("01CUPCAKES"),
+        "How many cupcakes do you want?",
+        None,
+        vec![Rule::Max(12)],
+        Vec::new(),
+        vec![
+            Choice::new(
+                choice_id.clone(),
+                "Cupcake",
+                vec![Rule::Max(12)],
+                Vec::new(),
+            )
+            .unwrap()
+            .with_inputs(vec![request, name])
+            .unwrap(),
+        ],
+    )
+    .unwrap();
+
+    let validate = |inputs| {
+        prompt
+            .validate_selections(&[ChoiceSelection::new(choice_id.clone(), 2).with_inputs(inputs)])
+    };
+
+    assert_eq!(
+        validate(vec![ChoiceInputValue::for_unit(
+            name_id.clone(),
+            1,
+            "Alice",
+        )]),
+        Err(choice_input_error(ChoiceInputError::MissingRequiredValue {
+            choice_id: choice_id.clone(),
+            input_id: name_id.clone(),
+            expected: 2,
+            actual: 1,
+        }))
+    );
+    assert_eq!(
+        validate(vec![ChoiceInputValue::once(name_id.clone(), "Alice")]),
+        Err(choice_input_error(ChoiceInputError::UnitRequired {
+            choice_id: choice_id.clone(),
+            input_id: name_id.clone(),
+        }))
+    );
+    assert_eq!(
+        validate(vec![ChoiceInputValue::for_unit(
+            request_id.clone(),
+            1,
+            "No nuts",
+        )]),
+        Err(choice_input_error(ChoiceInputError::UnexpectedUnit {
+            choice_id: choice_id.clone(),
+            input_id: request_id.clone(),
+        }))
+    );
+    assert_eq!(
+        validate(vec![ChoiceInputValue::for_unit(
+            name_id.clone(),
+            3,
+            "Alice",
+        )]),
+        Err(choice_input_error(ChoiceInputError::UnitOutOfRange {
+            choice_id: choice_id.clone(),
+            input_id: name_id.clone(),
+            unit: 3,
+            quantity: 2,
+        }))
+    );
+    assert_eq!(
+        validate(vec![
+            ChoiceInputValue::for_unit(name_id.clone(), 1, "Alice"),
+            ChoiceInputValue::for_unit(name_id.clone(), 1, "Alice"),
+        ]),
+        Err(choice_input_error(ChoiceInputError::DuplicateValue {
+            choice_id: choice_id.clone(),
+            input_id: name_id.clone(),
+            unit: Some(1),
+        }))
+    );
+    assert_eq!(
+        validate(vec![ChoiceInputValue::for_unit(name_id.clone(), 1, "")]),
+        Err(choice_input_error(ChoiceInputError::BelowMinimumLength {
+            choice_id: choice_id.clone(),
+            input_id: name_id.clone(),
+            min_length: 1,
+            actual: 0,
+        }))
+    );
+    assert_eq!(
+        validate(vec![ChoiceInputValue::once(
+            request_id.clone(),
+            "12345678901",
+        )]),
+        Err(choice_input_error(ChoiceInputError::AboveMaximumLength {
+            choice_id: choice_id.clone(),
+            input_id: request_id,
+            max_length: 10,
+            actual: 11,
+        }))
+    );
+    assert_eq!(
+        validate(vec![ChoiceInputValue::once(
+            component_id("01UNKNOWN"),
+            "Unknown",
+        )]),
+        Err(choice_input_error(ChoiceInputError::UnknownInput {
+            choice_id,
+            input_id: component_id("01UNKNOWN"),
+        }))
     );
 }
 
@@ -1552,6 +1800,10 @@ fn unconsumed_root_factor_is_invalid() {
         configuration.price(&usd(1800), ModifierPricingPolicy::default()),
         Err(ModifierError::UnconsumedPriceFactor(component_id("01LEFT")))
     );
+}
+
+fn choice_input_error(error: ChoiceInputError) -> ModifierError {
+    error.into()
 }
 
 fn cheese_prompt_with_default(prompt_id: ComponentId, default_id: ComponentId) -> Prompt {

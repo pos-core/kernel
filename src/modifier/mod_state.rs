@@ -6,7 +6,7 @@ use crate::modifier::mod_price::{
     branch_amount,
 };
 use crate::modifier::mod_selection::{
-    ChoiceSelection, PromptSelection, SelectionSource, Selections,
+    ChoiceInputValue, ChoiceSelection, PromptSelection, SelectionSource, Selections,
 };
 use crate::primitives::ids::ComponentId;
 use crate::primitives::label::{Label, ResolvedLabel};
@@ -168,6 +168,7 @@ pub struct ChoiceConfiguration {
     pub(super) source: SelectionSource,
     pub(super) effects: Vec<Effect>,
     pub(super) price: ChoicePrice,
+    pub(super) inputs: Vec<ChoiceInputConfiguration>,
     pub(super) modifiers: Option<Box<Configuration>>,
 }
 
@@ -204,13 +205,23 @@ impl ChoiceConfiguration {
         &self.price
     }
 
+    pub fn inputs(&self) -> &[ChoiceInputConfiguration] {
+        &self.inputs
+    }
+
     pub fn modifiers(&self) -> Option<&Configuration> {
         self.modifiers.as_deref()
     }
 
     pub fn dehydrate(&self) -> Option<ChoiceSelection> {
-        let mut selection =
-            ChoiceSelection::new(self.choice_id.clone(), self.quantity).with_source(self.source);
+        let mut selection = ChoiceSelection::new(self.choice_id.clone(), self.quantity)
+            .with_source(self.source)
+            .with_inputs(
+                self.inputs
+                    .iter()
+                    .map(ChoiceInputConfiguration::dehydrate)
+                    .collect(),
+            );
 
         if let Some(modifiers) = self.modifiers() {
             let nested = modifiers.dehydrate();
@@ -221,6 +232,50 @@ impl ChoiceConfiguration {
         }
 
         Some(selection)
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ChoiceInputConfiguration {
+    pub(super) input_id: ComponentId,
+    pub(super) label: ResolvedLabel,
+    pub(super) label_definition: Label,
+    pub(super) unit: Option<u32>,
+    pub(super) value: String,
+}
+
+impl ChoiceInputConfiguration {
+    pub fn input_id(&self) -> &ComponentId {
+        &self.input_id
+    }
+
+    pub fn title(&self) -> &str {
+        self.label.value()
+    }
+
+    pub fn label(&self) -> &ResolvedLabel {
+        &self.label
+    }
+
+    pub fn label_definition(&self) -> &Label {
+        &self.label_definition
+    }
+
+    pub fn unit(&self) -> Option<u32> {
+        self.unit
+    }
+
+    pub fn value(&self) -> &str {
+        &self.value
+    }
+
+    fn dehydrate(&self) -> ChoiceInputValue {
+        match self.unit {
+            Some(unit) => {
+                ChoiceInputValue::for_unit(self.input_id.clone(), unit, self.value.clone())
+            }
+            None => ChoiceInputValue::once(self.input_id.clone(), self.value.clone()),
+        }
     }
 }
 
@@ -305,6 +360,7 @@ pub struct ChoiceSnapshot {
     source: SelectionSource,
     effects: Vec<Effect>,
     price: ChoicePrice,
+    inputs: Vec<ChoiceInputSnapshot>,
     modifiers: Vec<PromptSnapshot>,
 }
 
@@ -341,8 +397,47 @@ impl ChoiceSnapshot {
         &self.price
     }
 
+    pub fn inputs(&self) -> &[ChoiceInputSnapshot] {
+        &self.inputs
+    }
+
     pub fn modifiers(&self) -> &[PromptSnapshot] {
         &self.modifiers
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ChoiceInputSnapshot {
+    input_id: ComponentId,
+    label: ResolvedLabel,
+    label_definition: Label,
+    unit: Option<u32>,
+    value: String,
+}
+
+impl ChoiceInputSnapshot {
+    pub fn input_id(&self) -> &ComponentId {
+        &self.input_id
+    }
+
+    pub fn title(&self) -> &str {
+        self.label.value()
+    }
+
+    pub fn label(&self) -> &ResolvedLabel {
+        &self.label
+    }
+
+    pub fn label_definition(&self) -> &Label {
+        &self.label_definition
+    }
+
+    pub fn unit(&self) -> Option<u32> {
+        self.unit
+    }
+
+    pub fn value(&self) -> &str {
+        &self.value
     }
 }
 
@@ -367,6 +462,17 @@ fn snapshot_prompts(prompts: &[PromptConfiguration]) -> Vec<PromptSnapshot> {
                     source: choice.source,
                     effects: choice.effects.clone(),
                     price: choice.price.clone(),
+                    inputs: choice
+                        .inputs()
+                        .iter()
+                        .map(|input| ChoiceInputSnapshot {
+                            input_id: input.input_id.clone(),
+                            label: input.label.clone(),
+                            label_definition: input.label_definition.clone(),
+                            unit: input.unit,
+                            value: input.value.clone(),
+                        })
+                        .collect(),
                     modifiers: choice
                         .modifiers()
                         .map(|modifiers| snapshot_prompts(modifiers.prompts()))
@@ -384,6 +490,7 @@ pub struct ValidatedChoiceSelection {
     pub(super) source: SelectionSource,
     pub(super) effects: Vec<Effect>,
     pub(super) price: ChoicePrice,
+    pub(super) inputs: Vec<ChoiceInputValue>,
     pub(super) modifiers: Option<Box<Modifiers>>,
 }
 
@@ -406,6 +513,10 @@ impl ValidatedChoiceSelection {
 
     pub fn price_definition(&self) -> &ChoicePrice {
         &self.price
+    }
+
+    pub fn inputs(&self) -> &[ChoiceInputValue] {
+        &self.inputs
     }
 
     pub fn modifiers(&self) -> Option<&Modifiers> {

@@ -14,6 +14,7 @@ pub fn report() -> ModuleReport {
                 "Order-item modifier snapshot",
                 "../src/order_item/order-item-modifier-snapshot.md",
             ),
+            DefinitionLink::new("Choice inputs", "../src/modifier/choice-inputs.md"),
             DefinitionLink::new("Order entry", "../src/entry/order-entry.md"),
         ],
         cases: vec![
@@ -28,7 +29,7 @@ pub fn report() -> ModuleReport {
 pub const CATALOG_BACKED_ORDER_ITEM_PRESERVES_CONFIGURED_CATALOG_FACTS: DescribedBehavior =
     DescribedBehavior::new(
         "catalog-backed order item preserves configured catalog facts",
-        "A catalog-backed order item preserves item, exact match, and component variant labels, effects, its order-item modifier snapshot, unit prices, and total price.",
+        "A catalog-backed order item preserves item, exact match, and component variant labels, effects, entered choice inputs, its order-item modifier snapshot, unit prices, and total price.",
         catalog_backed_order_item_preserves_configured_catalog_facts,
     );
 
@@ -83,6 +84,13 @@ fn catalog_backed_order_item_preserves_configured_catalog_facts() {
 
     assert_eq!(pepperoni.choice_id(), Some(&component_id("01PEPPER")));
     assert_eq!(pepperoni.title(), "Pepperoni");
+    assert_eq!(
+        pepperoni.inputs()[0].input_id(),
+        Some(&component_id("01REQUEST"))
+    );
+    assert_eq!(pepperoni.inputs()[0].title(), "Any special requests?");
+    assert_eq!(pepperoni.inputs()[0].unit(), None);
+    assert_eq!(pepperoni.inputs()[0].value(), "Cook it well done");
     assert_eq!(contribution.choice_id(), Some(&component_id("01PEPPER")));
     assert_eq!(contribution.title(), "Pepperoni");
     assert_eq!(contribution.amount().amount_minor(), 100);
@@ -132,7 +140,7 @@ fn empty_variant_match_does_not_duplicate_item_description() {
 pub const UNCONNECTED_ORDER_ITEM_SUPPORTS_NONE_IDS_DOWN_TO_MODIFIERS: DescribedBehavior =
     DescribedBehavior::new(
         "unconnected order item supports none ids down to modifiers",
-        "Manual order items can preserve labels, prompts, choices, and modifier price contributions without catalog IDs.",
+        "Manual order items can preserve labels, prompts, choices, entered inputs, and modifier price contributions without catalog IDs.",
         unconnected_order_item_supports_none_ids_down_to_modifiers,
     );
 
@@ -166,7 +174,13 @@ fn unconnected_order_item_supports_none_ids_down_to_modifiers() {
                     ChoicePrice::none(),
                     Vec::new(),
                 )
-                .unwrap(),
+                .unwrap()
+                .with_inputs(vec![OrderItemChoiceInputSnapshot::new(
+                    None,
+                    Label::without_id("Any special requests?").unwrap(),
+                    None,
+                    "No onions",
+                )]),
             ],
         )],
         modifier_price,
@@ -199,6 +213,9 @@ fn unconnected_order_item_supports_none_ids_down_to_modifiers() {
     assert_eq!(prompt.label().label_id(), None);
     assert_eq!(choice.choice_id(), None);
     assert_eq!(choice.label().label_id(), None);
+    assert_eq!(choice.inputs()[0].input_id(), None);
+    assert_eq!(choice.inputs()[0].label().label_id(), None);
+    assert_eq!(choice.inputs()[0].value(), "No onions");
     assert_eq!(contribution.choice_id(), None);
     assert_eq!(contribution.label().label_id(), None);
 
@@ -311,12 +328,15 @@ fn configured_pizza() -> ConfiguredCatalogItem {
     let selections = Selections::new().with_prompt(
         component_id("01TOPPING"),
         vec![
-            ChoiceSelection::new(component_id("01PEPPER"), 1).with_modifiers(
-                Selections::new().with_prompt(
+            ChoiceSelection::new(component_id("01PEPPER"), 1)
+                .with_inputs(vec![ChoiceInputValue::once(
+                    component_id("01REQUEST"),
+                    "Cook it well done",
+                )])
+                .with_modifiers(Selections::new().with_prompt(
                     component_id("01PLACE"),
                     vec![ChoiceSelection::new(component_id("01LEFT"), 1)],
-                ),
-            ),
+                )),
         ],
     );
 
@@ -374,6 +394,18 @@ fn pizza_modifiers() -> Modifiers {
                     vec![Rule::Max(1)],
                     Vec::new(),
                 )
+                .unwrap()
+                .with_inputs(vec![
+                    ChoiceInput::new(
+                        component_id("01REQUEST"),
+                        "Any special requests?",
+                        false,
+                        None,
+                        Some(500),
+                        false,
+                    )
+                    .unwrap(),
+                ])
                 .unwrap()
                 .with_price(ChoicePrice::flat_amount(usd(200)).unwrap())
                 .with_modifiers(placement_modifiers()),

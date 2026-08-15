@@ -1,14 +1,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::effect::Effect;
-use crate::modifier::mod_error::ModifierError;
+use crate::modifier::mod_error::{ChoiceInputError, ModifierError};
 use crate::modifier::mod_price::ChoicePrice;
 use crate::modifier::mod_rule::{Rule, SelectionBounds};
 use crate::modifier::mod_selection::{
-    ChoiceSelection, PromptSelection, SelectionCandidate, SelectionSource, Selections,
+    ChoiceInputValue, ChoiceSelection, PromptSelection, SelectionCandidate, SelectionSource,
+    Selections,
 };
 use crate::modifier::mod_state::{
-    ChoiceConfiguration, Configuration, PromptConfiguration, ValidatedChoiceSelection,
+    ChoiceConfiguration, ChoiceInputConfiguration, Configuration, PromptConfiguration,
+    ValidatedChoiceSelection,
 };
 use crate::modifier::mod_walk::ModifierNode;
 use crate::primitives::consumer::ConsumerProfile;
@@ -493,6 +495,26 @@ impl Prompt {
             })?;
             let input_choice = input_choices.get(index);
 
+            let choice_inputs = validated_choice
+                .inputs()
+                .iter()
+                .map(|value| {
+                    let input = choice
+                        .inputs()
+                        .iter()
+                        .find(|input| input.input_id() == value.input_id())
+                        .expect("validated choice input values have authored definitions");
+
+                    Ok(ChoiceInputConfiguration {
+                        input_id: value.input_id().clone(),
+                        label: input.label().resolve(inputs.consumer_profile)?,
+                        label_definition: input.label().clone(),
+                        unit: value.unit(),
+                        value: value.value().to_owned(),
+                    })
+                })
+                .collect::<Result<Vec<_>, ModifierError>>()?;
+
             let modifiers = match choice.modifiers() {
                 Some(modifiers) => {
                     let empty_selections = Selections::new();
@@ -524,6 +546,7 @@ impl Prompt {
                 source: validated_choice.source,
                 effects: validated_choice.effects,
                 price: validated_choice.price,
+                inputs: choice_inputs,
                 modifiers,
             });
         }
@@ -605,6 +628,7 @@ impl Prompt {
                     choice_id: selection.choice_id().clone(),
                     quantity: selection.quantity(),
                     source: selection.source(),
+                    inputs: selection.inputs().to_vec(),
                 })
                 .collect(),
             inputs,
@@ -622,6 +646,7 @@ impl Prompt {
                     choice_id: selection.choice_id().clone(),
                     quantity: selection.quantity(),
                     source: selection.source(),
+                    inputs: selection.inputs().to_vec(),
                 })
                 .collect(),
             HydrateInputs::new(
@@ -671,6 +696,7 @@ impl Prompt {
             }
 
             choice.validate_quantity(candidate.quantity)?;
+            let choice_inputs = choice.validate_inputs(candidate.quantity, &candidate.inputs)?;
 
             selected_count = selected_count
                 .checked_add(candidate.quantity)
@@ -682,6 +708,7 @@ impl Prompt {
                 source: candidate.source,
                 effects: choice.effects.clone(),
                 price: choice.price.clone(),
+                inputs: choice_inputs,
                 modifiers: choice.modifiers.clone(),
             });
         }
@@ -728,6 +755,7 @@ impl Prompt {
                     choice_id: choice.choice_id.clone(),
                     quantity,
                     source: SelectionSource::Default,
+                    inputs: Vec::new(),
                 });
             }
         }
@@ -742,6 +770,101 @@ impl Prompt {
     }
 }
 
+#[doc = include_str!("choice-inputs.md")]
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ChoiceInput {
+    input_id: ComponentId,
+    label: Label,
+    required: bool,
+    min_length: Option<u32>,
+    max_length: Option<u32>,
+    repeat_per_quantity: bool,
+}
+
+impl ChoiceInput {
+    pub fn new(
+        input_id: ComponentId,
+        title: impl Into<String>,
+        required: bool,
+        min_length: Option<u32>,
+        max_length: Option<u32>,
+        repeat_per_quantity: bool,
+    ) -> Result<Self, ModifierError> {
+        let title = title.into();
+
+        if title.trim().is_empty() {
+            return Err(ChoiceInputError::EmptyTitle.into());
+        }
+
+        let label = generated_label(&format!("{}-TITLE", input_id.suffix()), title);
+        Self::new_labeled(
+            input_id,
+            label,
+            required,
+            min_length,
+            max_length,
+            repeat_per_quantity,
+        )
+    }
+
+    pub fn new_labeled(
+        input_id: ComponentId,
+        label: Label,
+        required: bool,
+        min_length: Option<u32>,
+        max_length: Option<u32>,
+        repeat_per_quantity: bool,
+    ) -> Result<Self, ModifierError> {
+        if let (Some(min_length), Some(max_length)) = (min_length, max_length)
+            && min_length > max_length
+        {
+            return Err(ChoiceInputError::InvalidLengthConstraints {
+                input_id,
+                min_length,
+                max_length,
+            }
+            .into());
+        }
+
+        Ok(Self {
+            input_id,
+            label,
+            required,
+            min_length,
+            max_length,
+            repeat_per_quantity,
+        })
+    }
+
+    pub fn input_id(&self) -> &ComponentId {
+        &self.input_id
+    }
+
+    pub fn title(&self) -> &str {
+        self.label.default_text()
+    }
+
+    pub fn label(&self) -> &Label {
+        &self.label
+    }
+
+    pub fn required(&self) -> bool {
+        self.required
+    }
+
+    pub fn min_length(&self) -> Option<u32> {
+        self.min_length
+    }
+
+    pub fn max_length(&self) -> Option<u32> {
+        self.max_length
+    }
+
+    pub fn repeat_per_quantity(&self) -> bool {
+        self.repeat_per_quantity
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Choice {
     choice_id: ComponentId,
@@ -751,6 +874,7 @@ pub struct Choice {
     rules: Vec<Rule>,
     effects: Vec<Effect>,
     price: ChoicePrice,
+    inputs: Vec<ChoiceInput>,
     modifiers: Option<Box<Modifiers>>,
 }
 
@@ -785,6 +909,7 @@ impl Choice {
             rules,
             effects,
             price: ChoicePrice::none(),
+            inputs: Vec::new(),
             modifiers: None,
         };
 
@@ -801,6 +926,19 @@ impl Choice {
     pub fn with_price(mut self, price: ChoicePrice) -> Self {
         self.price = price;
         self
+    }
+
+    pub fn with_inputs(mut self, inputs: Vec<ChoiceInput>) -> Result<Self, ModifierError> {
+        let mut input_ids = BTreeSet::new();
+
+        for input in &inputs {
+            if !input_ids.insert(input.input_id.clone()) {
+                return Err(ChoiceInputError::DuplicateDefinition(input.input_id.clone()).into());
+            }
+        }
+
+        self.inputs = inputs;
+        Ok(self)
     }
 
     pub fn with_media(mut self, media: MediaCollection) -> Self {
@@ -860,6 +998,10 @@ impl Choice {
 
     pub fn price(&self) -> &ChoicePrice {
         &self.price
+    }
+
+    pub fn inputs(&self) -> &[ChoiceInput] {
+        &self.inputs
     }
 
     pub fn modifiers(&self) -> Option<&Modifiers> {
@@ -925,6 +1067,128 @@ impl Choice {
         }
 
         Ok(())
+    }
+
+    fn validate_inputs(
+        &self,
+        quantity: u32,
+        values: &[ChoiceInputValue],
+    ) -> Result<Vec<ChoiceInputValue>, ModifierError> {
+        let mut seen = BTreeSet::new();
+        let mut counts = BTreeMap::<&ComponentId, usize>::new();
+
+        for value in values {
+            let input = self
+                .inputs
+                .iter()
+                .find(|input| input.input_id() == value.input_id())
+                .ok_or_else(|| ChoiceInputError::UnknownInput {
+                    choice_id: self.choice_id.clone(),
+                    input_id: value.input_id().clone(),
+                })
+                .map_err(ModifierError::from)?;
+
+            match (input.repeat_per_quantity(), value.unit()) {
+                (false, Some(_)) => {
+                    return Err(ChoiceInputError::UnexpectedUnit {
+                        choice_id: self.choice_id.clone(),
+                        input_id: value.input_id().clone(),
+                    }
+                    .into());
+                }
+                (true, None) => {
+                    return Err(ChoiceInputError::UnitRequired {
+                        choice_id: self.choice_id.clone(),
+                        input_id: value.input_id().clone(),
+                    }
+                    .into());
+                }
+                (true, Some(unit)) if unit == 0 || unit > quantity => {
+                    return Err(ChoiceInputError::UnitOutOfRange {
+                        choice_id: self.choice_id.clone(),
+                        input_id: value.input_id().clone(),
+                        unit,
+                        quantity,
+                    }
+                    .into());
+                }
+                _ => {}
+            }
+
+            if !seen.insert((value.input_id().clone(), value.unit())) {
+                return Err(ChoiceInputError::DuplicateValue {
+                    choice_id: self.choice_id.clone(),
+                    input_id: value.input_id().clone(),
+                    unit: value.unit(),
+                }
+                .into());
+            }
+
+            let length = value.value().chars().count();
+
+            if let Some(min_length) = input.min_length()
+                && (length as u64) < u64::from(min_length)
+            {
+                return Err(ChoiceInputError::BelowMinimumLength {
+                    choice_id: self.choice_id.clone(),
+                    input_id: value.input_id().clone(),
+                    min_length,
+                    actual: length,
+                }
+                .into());
+            }
+
+            if let Some(max_length) = input.max_length()
+                && (length as u64) > u64::from(max_length)
+            {
+                return Err(ChoiceInputError::AboveMaximumLength {
+                    choice_id: self.choice_id.clone(),
+                    input_id: value.input_id().clone(),
+                    max_length,
+                    actual: length,
+                }
+                .into());
+            }
+
+            *counts.entry(input.input_id()).or_insert(0) += 1;
+        }
+
+        for input in &self.inputs {
+            if !input.required() {
+                continue;
+            }
+
+            let expected = if input.repeat_per_quantity() {
+                quantity
+            } else {
+                1
+            };
+            let actual = counts.get(input.input_id()).copied().unwrap_or(0);
+
+            if actual as u64 != u64::from(expected) {
+                return Err(ChoiceInputError::MissingRequiredValue {
+                    choice_id: self.choice_id.clone(),
+                    input_id: input.input_id().clone(),
+                    expected,
+                    actual,
+                }
+                .into());
+            }
+        }
+
+        let mut normalized = Vec::with_capacity(values.len());
+
+        for input in &self.inputs {
+            let mut input_values: Vec<_> = values
+                .iter()
+                .filter(|value| value.input_id() == input.input_id())
+                .cloned()
+                .collect();
+            input_values.sort_by_key(ChoiceInputValue::unit);
+            normalized.extend(input_values);
+        }
+
+        Ok(normalized)
     }
 
     fn default_quantity(&self) -> Result<Option<u32>, ModifierError> {

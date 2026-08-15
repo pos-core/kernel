@@ -4,8 +4,8 @@ use crate::catalog_item::ConfiguredCatalogItem;
 use crate::effect::Effect;
 use crate::entry::{EntryError, EntryKind, EntrySource, OrderEntry, PriceCategory};
 use crate::modifier::{
-    ChoicePrice, ChoiceSnapshot, ConfigurationSnapshot, ModifierError, PriceContribution,
-    PriceFactor, PromptSnapshot, SelectionSource,
+    ChoiceInputSnapshot, ChoicePrice, ChoiceSnapshot, ConfigurationSnapshot, ModifierError,
+    PriceContribution, PriceFactor, PromptSnapshot, SelectionSource,
 };
 use crate::primitives::ids::{
     CatalogItemId, CatalogVersionId, ComponentId, EntryId, OrderItemId, VariantId,
@@ -458,6 +458,7 @@ pub struct OrderItemChoiceSnapshot {
     source: SelectionSource,
     effects: Vec<Effect>,
     price: ChoicePrice,
+    inputs: Vec<OrderItemChoiceInputSnapshot>,
     modifiers: Vec<OrderItemPromptSnapshot>,
 }
 
@@ -482,8 +483,14 @@ impl OrderItemChoiceSnapshot {
             source,
             effects,
             price,
+            inputs: Vec::new(),
             modifiers,
         })
+    }
+
+    pub fn with_inputs(mut self, inputs: Vec<OrderItemChoiceInputSnapshot>) -> Self {
+        self.inputs = inputs;
+        self
     }
 
     pub fn choice_id(&self) -> Option<&ComponentId> {
@@ -514,6 +521,10 @@ impl OrderItemChoiceSnapshot {
         &self.price
     }
 
+    pub fn inputs(&self) -> &[OrderItemChoiceInputSnapshot] {
+        &self.inputs
+    }
+
     pub fn modifiers(&self) -> &[OrderItemPromptSnapshot] {
         &self.modifiers
     }
@@ -526,11 +537,69 @@ impl OrderItemChoiceSnapshot {
             source: choice.source(),
             effects: choice.effects().to_vec(),
             price: choice.price_definition().clone(),
+            inputs: choice
+                .inputs()
+                .iter()
+                .map(OrderItemChoiceInputSnapshot::from_choice_input_snapshot)
+                .collect(),
             modifiers: choice
                 .modifiers()
                 .iter()
                 .map(OrderItemPromptSnapshot::from_prompt_snapshot)
                 .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct OrderItemChoiceInputSnapshot {
+    input_id: Option<ComponentId>,
+    label: Label,
+    unit: Option<u32>,
+    value: String,
+}
+
+impl OrderItemChoiceInputSnapshot {
+    pub fn new(
+        input_id: Option<ComponentId>,
+        label: Label,
+        unit: Option<u32>,
+        value: impl Into<String>,
+    ) -> Self {
+        Self {
+            input_id,
+            label,
+            unit,
+            value: value.into(),
+        }
+    }
+
+    pub fn input_id(&self) -> Option<&ComponentId> {
+        self.input_id.as_ref()
+    }
+
+    pub fn label(&self) -> &Label {
+        &self.label
+    }
+
+    pub fn title(&self) -> &str {
+        self.label.default_text()
+    }
+
+    pub fn unit(&self) -> Option<u32> {
+        self.unit
+    }
+
+    pub fn value(&self) -> &str {
+        &self.value
+    }
+
+    fn from_choice_input_snapshot(input: &ChoiceInputSnapshot) -> Self {
+        Self {
+            input_id: Some(input.input_id().clone()),
+            label: input.label_definition().clone(),
+            unit: input.unit(),
+            value: input.value().to_owned(),
         }
     }
 }

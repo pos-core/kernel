@@ -31,17 +31,18 @@ pub mod prelude {
     };
     pub use crate::event::EventEnvelope;
     pub use crate::modifier::{
-        Choice, ChoiceConfiguration, ChoicePrice, ChoiceSelection, ChoiceSnapshot, Configuration,
-        ConfigurationSnapshot, ModifierApplicability, ModifierError, ModifierNode,
+        Choice, ChoiceConfiguration, ChoiceInput, ChoiceInputConfiguration, ChoiceInputError,
+        ChoiceInputSnapshot, ChoiceInputValue, ChoicePrice, ChoiceSelection, ChoiceSnapshot,
+        Configuration, ConfigurationSnapshot, ModifierApplicability, ModifierError, ModifierNode,
         ModifierPricingPolicy, Modifiers, PriceContribution, PriceFactor, PricedConfiguration,
         Prompt, PromptConfiguration, PromptSelection, PromptSnapshot, Rule, RuleKind,
         SelectionSource, Selections, ValidatedChoiceSelection,
     };
     pub use crate::order::{Order, OrderError, OrderEvent, OrderStatus};
     pub use crate::order_item::{
-        OrderItem, OrderItemChoiceSnapshot, OrderItemError, OrderItemModifierPrice,
-        OrderItemModifierSnapshot, OrderItemPriceContribution, OrderItemPriceFactor,
-        OrderItemPromptSnapshot, OrderItemSource,
+        OrderItem, OrderItemChoiceInputSnapshot, OrderItemChoiceSnapshot, OrderItemError,
+        OrderItemModifierPrice, OrderItemModifierSnapshot, OrderItemPriceContribution,
+        OrderItemPriceFactor, OrderItemPromptSnapshot, OrderItemSource,
     };
     pub use crate::primitives::calendar::{
         CalendarError, CalendarMoment, DayOfWeek, DaysOfWeek, LocalTimeOfDay, LocalTimeRange,
